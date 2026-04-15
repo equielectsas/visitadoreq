@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Empresas - EQUIELECT</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="../styles/dashboard/empresas.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="header">
+        <h2>Gestión de Empresas</h2>
+        <button onclick="abrirModal()" class="btn">+ Nueva empresa</button>
+    </div>
+
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>NIT</th>
+                    <th>Ciudad</th>
+                    <th>Teléfono</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="tablaEmpresas"></tbody>
+        </table>
+    </div>
+
+</div>
+
+<!-- MODAL -->
+<div class="modal" id="modal">
+    <div class="modal-content">
+
+        <h3 id="modalTitle">Nueva empresa</h3>
+
+        <input type="text" id="nombre" placeholder="Nombre empresa">
+        <input type="text" id="nit" placeholder="NIT">
+        <input type="text" id="ciudad" placeholder="Ciudad">
+        <input type="text" id="telefono" placeholder="Teléfono">
+
+        <select id="estado">
+            <option value="activa">Activa</option>
+            <option value="inactiva">Inactiva</option>
+        </select>
+
+        <div class="modal-actions">
+            <button onclick="guardarEmpresa()" class="btn">Guardar</button>
+            <button onclick="cerrarModal()" class="btn cancel">Cancelar</button>
+        </div>
+
+    </div>
+</div>
+
+<script src="../../js/empresas.js"></script>
+
+</body>
+</html>

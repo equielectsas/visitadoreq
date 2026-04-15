@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Visitas - EQUIELECT</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="../styles/dashboard/visitas.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="container">
+
+    <!-- HEADER -->
+    <div class="header">
+        <h2>Gestión de Visitas</h2>
+        <button onclick="abrirModal()" class="btn">+ Nueva visita</button>
+    </div>
+
+    <!-- TABLA -->
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Cliente</th>
+                    <th>Fecha</th>
+                    <th>Hora</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="tablaVisitas"></tbody>
+        </table>
+    </div>
+
+</div>
+
+<!-- MODAL -->
+<div class="modal" id="modal">
+    <div class="modal-content">
+
+        <h3 id="modalTitle">Nueva visita</h3>
+
+        <input type="text" id="cliente" placeholder="Cliente">
+        <input type="date" id="fecha">
+        <input type="time" id="hora">
+
+        <select id="estado">
+            <option value="pendiente">Pendiente</option>
+            <option value="proceso">En proceso</option>
+            <option value="completada">Completada</option>
+            <option value="cancelada">No realizada</option>
+        </select>
+
+        <div class="modal-actions">
+            <button onclick="guardarVisita()" class="btn">Guardar</button>
+            <button onclick="cerrarModal()" class="btn cancel">Cancelar</button>
+        </div>
+
+    </div>
+</div>
+
+<script src="../../js/visitas.js"></script>
+
+</body>
+</html>

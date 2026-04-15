@@ -1,0 +1,12 @@
+/* VARIABLES DE MARCA */
+:root {
+    --color-primary: #FFCD00;
+    --color-secondary: #1C355E;
+    --color-gray: #98989A;
+}
+
+/* TIPOGRAFÍA GLOBAL */
+body {
+    font-family: 'Montserrat', sans-serif;
+    background-color: #f5f6fa;
+}
