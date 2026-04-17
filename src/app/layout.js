@@ -14,7 +14,9 @@ export default function RootLayout({ children }) {
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-screen">{children}</body>
+      <body className="min-h-screen bg-[#f6f8fb]">
+        {children}
+      </body>
     </html>
   );
 }

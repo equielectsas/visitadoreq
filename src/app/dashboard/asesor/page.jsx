@@ -10,15 +10,15 @@ export default function DashboardAsesor() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadData();
+    loadVisitas();
   }, []);
 
-  const loadData = async () => {
+  const loadVisitas = async () => {
     try {
       const data = await getVisitas();
       setVisitas(data);
     } catch (error) {
-      console.error(error);
+      console.error("Error cargando visitas", error);
     } finally {
       setLoading(false);
     }
@@ -81,7 +81,7 @@ export default function DashboardAsesor() {
 
           </div>
 
-          {/* VISITAS DEL DÍA */}
+          {/* AGENDA DEL DÍA */}
           <div className="bg-white rounded-xl shadow">
 
             <div className="p-4 border-b">
@@ -94,7 +94,7 @@ export default function DashboardAsesor() {
 
               {visitasHoy.length === 0 && (
                 <div className="p-4 text-sm text-gray-500">
-                  No tienes visitas programadas hoy
+                  No tienes visitas hoy
                 </div>
               )}
 
@@ -122,7 +122,7 @@ export default function DashboardAsesor() {
 
           </div>
 
-          {/* ALERTAS SIMPLES */}
+          {/* ALERTAS */}
           <div className="bg-white rounded-xl shadow p-4">
 
             <h2 className="text-sm font-semibold text-gray-700 mb-3">
