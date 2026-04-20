@@ -1,40 +1,18 @@
-// src/lib/api/auth.js
-
-export async function login({ cedula, password }) {
-
-  await new Promise((res) => setTimeout(res, 800));
-
-  const users = [
-    {
-      cedula: "10123456",
-      password: "123asesor",
-      rol: "asesor",
-      nombre: "Asesor Demo",
-    },
-    {
-      cedula: "admin",
-      password: "admin",
-      rol: "admin",
-      nombre: "Administrador",
-    },
-    {
-      cedula: "1026198222",
-      password: "jerolomon23",
-      rol: "programador",
-      nombre: "Dev 1",
-    },
-  ];
-
-  const user = users.find(
-    (u) => u.cedula === cedula && u.password === password
-  );
-
-  if (!user) {
-    throw new Error("Credenciales incorrectas");
+﻿export async function login({ cedula, password }) {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cedula, password }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.token) {
+    throw new Error(data.message || "Credenciales incorrectas");
   }
-
-  return {
-    user,
-    token: "fake-jwt",
-  };
+  localStorage.setItem("token", data.token);
+  localStorage.setItem("user", JSON.stringify({
+    cedula: data.cedula,
+    nombre: data.nombre,
+    rol: data.rol,
+  }));
+  return { user: { cedula: data.cedula, nombre: data.nombre, rol: data.rol }, token: data.token };
 }
