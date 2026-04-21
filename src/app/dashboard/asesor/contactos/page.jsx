@@ -1,4 +1,4 @@
-import LayoutDashboard from "@/app/components/LayoutDashboard";
+import LayoutDashboard from "../../../../components/LayoutDashboard";
 
 export default function Perfil() {
   return (

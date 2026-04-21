@@ -1,7 +1,7 @@
 "use client";
 import VisitaDetalle from "@/modules/visitas/components/VisitaDetalle";
 import { useEffect, useState } from "react";
-import LayoutDashboard from "@/app/components/LayoutDashboard";
+import LayoutDashboard from "../../../../components/LayoutDashboard";
 import {
   getVisitas,
   createVisita,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import LayoutDashboard from "@/app/components/LayoutDashboard";
+import LayoutDashboard from "../../../components/LayoutDashboard";
 import { getVisitas } from "@/modules/visitas/services/visitas.service";
 
 export default function DashboardAsesor() {

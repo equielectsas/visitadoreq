@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import LayoutDashboard from "@/app/components/LayoutDashboard";
+import LayoutDashboard from "../../../../../components/LayoutDashboard";
 import { getVisitaById } from "@/modules/visitas/services/visitas.service";
 
 export default function VisitaDetallePage() {
