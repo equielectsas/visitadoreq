@@ -1,218 +1,248 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import LayoutDashboard from "@/components/LayoutDashboard";
 
-export default function UsuariosPage() {
-  const [usuarios, setUsuarios] = useState([
-    {
-      id: 1,
-      cedula: "123456",
-      nombre: "Juan Pérez",
-      email: "juan@mail.com",
-      activo: true,
-    },
-    {
-      id: 2,
-      cedula: "789101",
-      nombre: "Ana Gómez",
-      email: "ana@mail.com",
-      activo: false,
-    },
-  ]);
+const PAGE_SIZE = 15;
+const LIMIT = 200;
 
-  const [busqueda, setBusqueda] = useState("");
-  const [form, setForm] = useState({
-    id: null,
-    cedula: "",
-    nombre: "",
-    email: "",
-    activo: true,
-  });
+export default function Clientes() {
+  const [allData, setAllData] = useState([]);
+  const [filtered, setFiltered] = useState([]);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const [editando, setEditando] = useState(false);
+  // 🔥 FETCH CLIENTES (PAGINADO DESDE BACKEND)
+  const fetchClientes = useCallback(async (offset = 0, accum = []) => {
+    try {
+      setLoading(true);
+
+      const token = localStorage.getItem("token");
+
+      const res = await fetch(
+        `/api/clientes?limit=${LIMIT}&offset=${offset}`,
+        {
+          headers: { Authorization: token },
+        }
+      );
+
+      if (!res.ok) throw new Error("Error al obtener clientes");
+
+      const data = await res.json();
+
+      const lista = Array.isArray(data)
+        ? data
+        : data.clientes ?? data.data ?? [];
+
+      const total = [...accum, ...lista];
+
+      setAllData(total);
+      setFiltered(total);
+
+      // 🔁 PAGINACIÓN AUTOMÁTICA
+      if (lista.length === LIMIT) {
+        fetchClientes(offset + LIMIT, total);
+      } else {
+        setLoading(false);
+      }
+    } catch (err) {
+      setError(err.message);
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchClientes(0, []);
+  }, [fetchClientes]);
 
   // 🔍 FILTRO
-  const usuariosFiltrados = usuarios.filter((u) =>
-    u.cedula.includes(busqueda) ||
-    u.nombre.toLowerCase().includes(busqueda.toLowerCase())
+  useEffect(() => {
+    const term = search.toLowerCase();
+
+    const result = term
+      ? allData.filter(
+          (c) =>
+            (c.nit ?? "").toLowerCase().includes(term) ||
+            (c.razonSocial ?? "").toLowerCase().includes(term)
+        )
+      : [...allData];
+
+    setFiltered(result);
+    setPage(1);
+  }, [search, allData]);
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+
+  const slice = filtered.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE
   );
 
-  // ➕ CREAR / EDITAR
-  const handleSubmit = (e) => {
-    e.preventDefault();
-
-    if (editando) {
-      setUsuarios(
-        usuarios.map((u) => (u.id === form.id ? form : u))
-      );
-      setEditando(false);
-    } else {
-      setUsuarios([
-        ...usuarios,
-        { ...form, id: Date.now() },
-      ]);
-    }
-
-    resetForm();
-  };
-
-  // ✏️ EDITAR
-  const handleEdit = (usuario) => {
-    setForm(usuario);
-    setEditando(true);
-  };
-
-  // ❌ ELIMINAR
-  const handleDelete = (id) => {
-    if (!confirm("¿Eliminar usuario?")) return;
-    setUsuarios(usuarios.filter((u) => u.id !== id));
-  };
-
-  const resetForm = () => {
-    setForm({
-      id: null,
-      cedula: "",
-      nombre: "",
-      email: "",
-      activo: true,
-    });
-  };
+  const activos = allData.filter(
+    (c) =>
+      (c.estado ?? "").toString() === "1" ||
+      (c.estado ?? "").toString().toLowerCase() === "activo"
+  ).length;
 
   return (
     <LayoutDashboard>
+      {/* HEADER */}
+      <div className="flex justify-between flex-wrap gap-3 mb-6">
+        <div>
+          <h1 className="text-xl font-medium text-gray-800">Clientes</h1>
+          <p className="text-sm text-gray-500">
+            Directorio de clientes SAFIX
+          </p>
+        </div>
 
-      <h1 className="text-3xl pb-6">Clientes</h1>
-
-      {/* 🔍 BUSCADOR */}
-      <div className="mb-6">
         <input
           type="text"
           placeholder="Buscar por NIT o nombre..."
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          className="w-full md:w-1/3 px-4 py-2 border rounded"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="border rounded-lg px-3 py-2 text-sm w-72"
         />
       </div>
 
-      {/* 🧾 FORMULARIO */}
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white p-6 rounded shadow mb-8 grid grid-cols-1 md:grid-cols-4 gap-4"
-      >
-        <input
-          placeholder="Cédula"
-          value={form.cedula}
-          onChange={(e) =>
-            setForm({ ...form, cedula: e.target.value })
-          }
-          className="px-3 py-2 border rounded"
-          required
-        />
+      {/* RESUMEN */}
+      <div className="grid grid-cols-3 gap-3 mb-5">
+        <Card label="Total clientes" value={allData.length} loading={loading} />
+        <Card label="Activos" value={activos} loading={loading} />
+        <Card label="Resultados" value={filtered.length} loading={loading} />
+      </div>
 
-        <input
-          placeholder="Nombre"
-          value={form.nombre}
-          onChange={(e) =>
-            setForm({ ...form, nombre: e.target.value })
-          }
-          className="px-3 py-2 border rounded"
-          required
-        />
+      {/* TABLA */}
+      <div className="bg-white border rounded-xl overflow-hidden">
+        {error && (
+          <div className="p-4 text-red-600 bg-red-50">{error}</div>
+        )}
 
-        <input
-          placeholder="Email"
-          value={form.email}
-          onChange={(e) =>
-            setForm({ ...form, email: e.target.value })
-          }
-          className="px-3 py-2 border rounded"
-          required
-        />
-
-        <select
-          value={form.activo}
-          onChange={(e) =>
-            setForm({
-              ...form,
-              activo: e.target.value === "true",
-            })
-          }
-          className="px-3 py-2 border rounded"
-        >
-          <option value="true">Activo</option>
-          <option value="false">Inactivo</option>
-        </select>
-
-        <button
-          type="submit"
-          className="col-span-1 md:col-span-4 bg-[var(--color-primary)] text-black py-2 rounded font-semibold"
-        >
-          {editando ? "Actualizar Cliente" : "Crear Cliente"}
-        </button>
-      </form>
-
-      {/* 📊 TABLA */}
-      <div className="bg-white shadow rounded overflow-hidden">
-        <table className="w-full text-left">
-          <thead className="bg-[var(--color-secondary)] text-white">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50">
             <tr>
-              <th className="p-3">Cédula</th>
-              <th className="p-3">Nombre</th>
-              <th className="p-3">Email</th>
-              <th className="p-3">Estado</th>
-              <th className="p-3">Acciones</th>
+              {["NIT", "Nombre", "Ciudad", "Teléfono", "Estado"].map((h) => (
+                <th
+                  key={h}
+                  className="px-4 py-2 text-left text-xs text-gray-400 border-b"
+                >
+                  {h}
+                </th>
+              ))}
             </tr>
           </thead>
 
           <tbody>
-            {usuariosFiltrados.map((u) => (
-              <tr key={u.id} className="border-b">
-                <td className="p-3">{u.cedula}</td>
-                <td className="p-3">{u.nombre}</td>
-                <td className="p-3">{u.email}</td>
-
-                <td className="p-3">
-                  <span
-                    className={`px-3 py-1 rounded-full text-sm ${
-                      u.activo
-                        ? "bg-green-200 text-green-800"
-                        : "bg-red-200 text-red-800"
-                    }`}
-                  >
-                    {u.activo ? "Activo" : "Inactivo"}
-                  </span>
-                </td>
-
-                <td className="p-3 flex gap-2">
-                  <button
-                    onClick={() => handleEdit(u)}
-                    className="px-3 py-1 bg-blue-500 text-white rounded"
-                  >
-                    Editar
-                  </button>
-
-                  <button
-                    onClick={() => handleDelete(u.id)}
-                    className="px-3 py-1 bg-red-500 text-white rounded"
-                  >
-                    Eliminar
-                  </button>
-                </td>
-              </tr>
-            ))}
-
-            {usuariosFiltrados.length === 0 && (
+            {loading && slice.length === 0 ? (
               <tr>
-                <td colSpan="5" className="p-4 text-center text-gray-500">
-                  No hay clientes
+                <td colSpan={5} className="text-center py-10">
+                  Cargando clientes...
                 </td>
               </tr>
+            ) : slice.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="text-center py-10">
+                  No se encontraron clientes
+                </td>
+              </tr>
+            ) : (
+              slice.map((c, i) => {
+                // 🔥 NORMALIZACIÓN DE DATOS (CLAVE)
+                const nit = c.nit ?? "—";
+
+                const nombre =
+                  c.razonSocial ||
+                  c.nombre ||
+                  c.NOMBRE ||
+                  `Cliente ${c.nit}`;
+
+                const ciudad =
+                  c.nombreCiudad ||
+                  c.ciudad ||
+                  c.CIUDAD ||
+                  "Sin ciudad";
+
+                const tel =
+                  c.telefono ||
+                  c.TELEFONO ||
+                  c.Telefonos?.[0]?.numero ||
+                  "—";
+
+                const activo =
+                  (c.estado ?? "").toString() === "1" ||
+                  (c.estado ?? "").toString().toLowerCase() === "activo";
+
+                return (
+                  <tr key={i} className="border-b hover:bg-gray-50">
+                    <td className="px-4 py-2 font-mono text-xs">{nit}</td>
+                    <td className="px-4 py-2">{nombre}</td>
+                    <td className="px-4 py-2">{ciudad}</td>
+                    <td className="px-4 py-2">{tel}</td>
+                    <td className="px-4 py-2">
+                      <span
+                        className={`px-2 py-1 rounded text-xs ${
+                          activo
+                            ? "bg-green-100 text-green-700"
+                            : "bg-gray-100 text-gray-500"
+                        }`}
+                      >
+                        {activo ? "Activo" : "Inactivo"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
-      </div>
 
+        {/* PAGINACIÓN */}
+        <div className="flex justify-between p-3 text-xs">
+          <span>
+            {filtered.length > 0
+              ? `Mostrando ${(page - 1) * PAGE_SIZE + 1} - ${Math.min(
+                  page * PAGE_SIZE,
+                  filtered.length
+                )} de ${filtered.length}`
+              : "Sin resultados"}
+          </span>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
+              ←
+            </button>
+
+            <span>
+              {page} / {totalPages || 1}
+            </span>
+
+            <button
+              onClick={() =>
+                setPage((p) => Math.min(totalPages || 1, p + 1))
+              }
+              disabled={page >= totalPages}
+            >
+              →
+            </button>
+          </div>
+        </div>
+      </div>
     </LayoutDashboard>
+  );
+}
+
+// 🔹 COMPONENTE CARD
+function Card({ label, value, loading }) {
+  return (
+    <div className="bg-white p-4 border rounded-lg">
+      <p className="text-xs text-gray-400">{label}</p>
+      <p className="text-xl font-medium">
+        {loading ? "..." : value}
+      </p>
+    </div>
   );
 }
