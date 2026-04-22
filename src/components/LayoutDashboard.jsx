@@ -4,24 +4,22 @@ import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 
 export default function LayoutDashboard({ children }) {
-
-  // 🔥 luego esto vendrá del backend o contexto
-  const rol = "adminPlataforma";
-
   return (
-    <div className="flex h-screen bg-[#f6f8fb]">
+    <div className="flex flex-col h-screen bg-[#f6f8fb]">
 
-      {/* SIDEBAR DINÁMICO */}
-      <Sidebar rol={rol} />
+      {/* 🔝 TOPBAR FULL WIDTH */}
+      <Topbar />
 
-      {/* CONTENIDO */}
-      <div className="flex-1 flex flex-col">
+      {/* 🔽 CONTENIDO CON SIDEBAR */}
+      <div className="flex flex-1">
 
-        <Topbar />
+        {/* SIDEBAR */}
+        <Sidebar />
 
-        <div className="p-6 overflow-auto">
+        {/* CONTENIDO */}
+        <main className="flex-1 p-6 overflow-auto">
           {children}
-        </div>
+        </main>
 
       </div>
 

@@ -1,148 +1,193 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import LayoutDashboard from "../../../components/LayoutDashboard";
-import { getVisitas } from "@/modules/visitas/services/visitas.service";
+import { useState } from "react";
+import LayoutDashboard from "@/components/LayoutDashboard";
 
-export default function DashboardAsesor() {
+export default function CitasAsesorPage() {
 
-  const [visitas, setVisitas] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // 📌 Estado principal
+  const [citas, setCitas] = useState([]);
 
-  useEffect(() => {
-    loadVisitas();
-  }, []);
+  const [form, setForm] = useState({
+    cliente: "",
+    telefono: "",
+    fecha: "",
+    estado: "pendiente",
+  });
 
-  const loadVisitas = async () => {
-    try {
-      const data = await getVisitas();
-      setVisitas(data);
-    } catch (error) {
-      console.error("Error cargando visitas", error);
-    } finally {
-      setLoading(false);
-    }
+  const [filtro, setFiltro] = useState("todos");
+
+  // ➕ CREAR CITA
+  const handleSubmit = (e) => {
+    e.preventDefault();
+
+    const nuevaCita = {
+      id: Date.now(),
+      ...form,
+      estado: "pendiente", // 🔥 SIEMPRE inicia pendiente
+    };
+
+    setCitas([...citas, nuevaCita]);
+
+    setForm({
+      cliente: "",
+      telefono: "",
+      fecha: "",
+      estado: "pendiente",
+    });
   };
 
-  // 📊 MÉTRICAS REALES
-  const hoy = new Date().toDateString();
+  // 🔄 CAMBIAR ESTADO
+  const cambiarEstado = (id, nuevoEstado) => {
+    setCitas(
+      citas.map((c) =>
+        c.id === id ? { ...c, estado: nuevoEstado } : c
+      )
+    );
+  };
 
-  const visitasHoy = visitas.filter(
-    (v) => new Date(v.fecha_programada).toDateString() === hoy
-  );
+  // ❌ ELIMINAR
+  const eliminar = (id) => {
+    setCitas(citas.filter((c) => c.id !== id));
+  };
 
-  const completadas = visitas.filter((v) => v.estado === "COMPLETADA");
-  const pendientes = visitas.filter((v) => v.estado === "PROGRAMADA");
+  // 🔍 FILTRO
+  const citasFiltradas =
+    filtro === "todos"
+      ? citas
+      : citas.filter((c) => c.estado === filtro);
 
   return (
     <LayoutDashboard>
 
-      <h1 className="text-xl font-semibold mb-6">
-        Dashboard Asesor
-      </h1>
+      <h1 className="text-2xl font-bold mb-6">Mis Citas</h1>
 
-      {loading && (
-        <p className="text-sm text-gray-500">Cargando información...</p>
-      )}
+      {/* 🔘 FILTROS */}
+      <div className="flex gap-2 mb-6">
+        {["todos", "pendiente", "realizada", "perdida"].map((f) => (
+          <button
+            key={f}
+            onClick={() => setFiltro(f)}
+            className={`px-3 py-1 rounded ${
+              filtro === f
+                ? "bg-blue-600 text-white"
+                : "bg-gray-200"
+            }`}
+          >
+            {f}
+          </button>
+        ))}
+      </div>
 
-      {!loading && (
-        <div className="space-y-6">
+      {/* 🧾 FORM */}
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white p-4 rounded shadow mb-6 grid grid-cols-1 md:grid-cols-4 gap-3"
+      >
+        <input
+          placeholder="Cliente"
+          value={form.cliente}
+          onChange={(e) =>
+            setForm({ ...form, cliente: e.target.value })
+          }
+          className="border p-2 rounded"
+          required
+        />
 
-          {/* KPIs */}
-          <div className="grid grid-cols-4 gap-4">
+        <input
+          placeholder="Teléfono"
+          value={form.telefono}
+          onChange={(e) =>
+            setForm({ ...form, telefono: e.target.value })
+          }
+          className="border p-2 rounded"
+          required
+        />
 
-            <div className="bg-white p-4 rounded-xl shadow">
-              <p className="text-xs text-gray-400">Visitas hoy</p>
-              <h2 className="text-xl font-semibold">
-                {visitasHoy.length}
-              </h2>
-            </div>
+        <input
+          type="date"
+          value={form.fecha}g
+          onChange={(e) =>
+            setForm({ ...form, fecha: e.target.value })
+          }
+          className="border p-2 rounded"
+          required
+        />
 
-            <div className="bg-white p-4 rounded-xl shadow">
-              <p className="text-xs text-gray-400">Completadas</p>
-              <h2 className="text-xl font-semibold text-green-600">
-                {completadas.length}
-              </h2>
-            </div>
+        <button className="bg-yellow-400 font-bold rounded">
+          Crear Cita
+        </button>
+      </form>
 
-            <div className="bg-white p-4 rounded-xl shadow">
-              <p className="text-xs text-gray-400">Pendientes</p>
-              <h2 className="text-xl font-semibold text-yellow-600">
-                {pendientes.length}
-              </h2>
-            </div>
+      {/* 📊 TABLA */}
+      <div className="bg-white rounded shadow overflow-hidden">
+        <table className="w-full text-left">
+          <thead className="bg-gray-800 text-white">
+            <tr>
+              <th className="p-3">Cliente</th>
+              <th className="p-3">Teléfono</th>
+              <th className="p-3">Fecha</th>
+              <th className="p-3">Estado</th>
+              <th className="p-3">Acciones</th>
+            </tr>
+          </thead>
 
-            <div className="bg-white p-4 rounded-xl shadow">
-              <p className="text-xs text-gray-400">Total</p>
-              <h2 className="text-xl font-semibold">
-                {visitas.length}
-              </h2>
-            </div>
+          <tbody>
+            {citasFiltradas.map((c) => (
+              <tr key={c.id} className="border-b">
+                <td className="p-3">{c.cliente}</td>
+                <td className="p-3">{c.telefono}</td>
+                <td className="p-3">{c.fecha}</td>
 
-          </div>
+                <td className="p-3 capitalize">
+                  {c.estado}
+                </td>
 
-          {/* AGENDA DEL DÍA */}
-          <div className="bg-white rounded-xl shadow">
+                <td className="p-3 flex gap-2 flex-wrap">
 
-            <div className="p-4 border-b">
-              <h2 className="text-sm font-semibold text-gray-700">
-                Agenda de hoy
-              </h2>
-            </div>
+                  {c.estado === "pendiente" && (
+                    <>
+                      <button
+                        onClick={() =>
+                          cambiarEstado(c.id, "realizada")
+                        }
+                        className="bg-green-500 text-white px-2 rounded"
+                      >
+                        ✔
+                      </button>
 
-            <div className="divide-y">
+                      <button
+                        onClick={() =>
+                          cambiarEstado(c.id, "perdida")
+                        }
+                        className="bg-red-500 text-white px-2 rounded"
+                      >
+                        ✖
+                      </button>
+                    </>
+                  )}
 
-              {visitasHoy.length === 0 && (
-                <div className="p-4 text-sm text-gray-500">
-                  No tienes visitas hoy
-                </div>
-              )}
+                  <button
+                    onClick={() => eliminar(c.id)}
+                    className="bg-gray-400 text-white px-2 rounded"
+                  >
+                    🗑
+                  </button>
 
-              {visitasHoy.map((v) => (
-                <div
-                  key={v.id}
-                  className="p-4 flex justify-between items-center"
-                >
-                  <div>
-                    <p className="text-sm font-medium">
-                      {v.empresa}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {new Date(v.fecha_programada).toLocaleTimeString()}
-                    </p>
-                  </div>
+                </td>
+              </tr>
+            ))}
 
-                  <span className="text-xs px-2 py-1 rounded bg-yellow-100 text-yellow-700">
-                    {v.estado}
-                  </span>
-                </div>
-              ))}
-
-            </div>
-
-          </div>
-
-          {/* ALERTAS */}
-          <div className="bg-white rounded-xl shadow p-4">
-
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">
-              Alertas
-            </h2>
-
-            {pendientes.length > 0 ? (
-              <div className="text-sm text-yellow-600">
-                Tienes {pendientes.length} visitas pendientes por completar
-              </div>
-            ) : (
-              <div className="text-sm text-gray-400">
-                No hay alertas activas
-              </div>
+            {citasFiltradas.length === 0 && (
+              <tr>
+                <td colSpan="5" className="text-center p-4">
+                  No hay citas
+                </td>
+              </tr>
             )}
-
-          </div>
-
-        </div>
-      )}
+          </tbody>
+        </table>
+      </div>
 
     </LayoutDashboard>
   );
