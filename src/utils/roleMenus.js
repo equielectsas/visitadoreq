@@ -72,6 +72,18 @@ export const roleMenus = {
       path: "/dashboard/admin/clientes",
     },
     {
+      section: "Gestión",
+      name: "Usuarios",
+      icon: "users",
+      path: "/dashboard/programador/usuarios",
+    },
+    {
+      section: "Gestión",
+      name: "Contactos",
+      icon: "contact",
+      path: "/dashboard/programador/contactos",
+    },
+    {
       section: "Análisis",
       name: "Reportes",
       icon: "report",
