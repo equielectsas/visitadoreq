@@ -86,12 +86,24 @@ export const roleMenus = {
       icon: "dashboard",
       path: "/dashboard/asesor",
     },
+    // "Crear Visita" — ítem especial con action, no path de ruta
+    // El sidebar lo identifica por el campo action: "crear-visita"
+    // y dispara el modal directamente sin navegar
+    {
+      section: "Principal",
+      name: "Crear Visita",
+      icon: "plus",
+      action: "crear-visita",   // ← el sidebar intercepta esto
+      path: "/dashboard/asesor",  // fallback path (mismo dashboard)
+    },
     {
       section: "Principal",
       name: "Citas",
       icon: "calendar",
       children: [
         { name: "Pendientes", path: "/dashboard/asesor/citas?estado=pendiente" },
+        { name: "Activas",    path: "/dashboard/asesor/citas?estado=activa" },
+        { name: "Realizadas", path: "/dashboard/asesor/citas?estado=realizada" },
       ],
     },
     {
