@@ -35,6 +35,11 @@ const CloseIcon = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
   </svg>
 );
+const CheckAllIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7M3 13l4 4" />
+  </svg>
+);
 
 // ── Role config ───────────────────────────────────────────────────────────────
 const ROL_DISPLAY = {
@@ -49,6 +54,22 @@ const ROLE_STYLES = {
   default:         { bg: "bg-gray-100",      text: "text-gray-600",    label: "Usuario"       },
 };
 
+// ── Notification types ────────────────────────────────────────────────────────
+const NOTIF_ICONS = {
+  cita:    { emoji: "📅", bg: "bg-blue-50",    text: "text-blue-600"   },
+  alerta:  { emoji: "⚠️", bg: "bg-yellow-50",  text: "text-yellow-600" },
+  sistema: { emoji: "⚙️", bg: "bg-gray-50",    text: "text-gray-600"   },
+  exito:   { emoji: "✅", bg: "bg-emerald-50", text: "text-emerald-600" },
+};
+
+// ── Sample notifications (in a real app, these come from an API/localStorage) ──
+const INITIAL_NOTIFS = [
+  { id: 1, type: "cita",    title: "Cita pendiente",       body: "Tienes una cita con Empresa ABC mañana a las 10:00 AM",  time: "hace 5 min",  read: false },
+  { id: 2, type: "alerta",  title: "Visita sin finalizar",  body: "La visita a Ferretería López lleva más de 2 horas activa", time: "hace 30 min", read: false },
+  { id: 3, type: "exito",   title: "Cita realizada",        body: "La visita a Constructora Norte fue marcada como realizada", time: "hace 1h",    read: false },
+  { id: 4, type: "sistema", title: "Actualización del sistema", body: "La plataforma se actualizó a v2.4.1 con nuevas funciones", time: "hace 3h",  read: true  },
+];
+
 // ── Avatar ────────────────────────────────────────────────────────────────────
 const GRADIENTS = [
   "from-yellow-400 to-orange-400", "from-sky-400 to-blue-500",
@@ -58,23 +79,114 @@ const GRADIENTS = [
 function getGradient(name = "") { return GRADIENTS[(name.charCodeAt(0) || 0) % GRADIENTS.length]; }
 
 function Avatar({ user, size = "md" }) {
-  const sz    = size === "lg" ? "w-11 h-11 text-base" : "w-9 h-9 text-sm";
-  const ring  = size === "lg" ? "ring-2" : "ring-2";
+  const sz = size === "lg" ? "w-11 h-11 text-base" : "w-9 h-9 text-sm";
   const initials = (user?.nombre || "U").split(" ").slice(0,2).map((n) => n[0]).join("").toUpperCase();
   const gradient = getGradient(user?.nombre || "");
-
   if (user?.avatar) {
-    return (
-      <img
-        src={user.avatar}
-        alt={user.nombre}
-        className={`${sz} rounded-full object-cover shadow-md ${ring} ring-white`}
-      />
-    );
+    return <img src={user.avatar} alt={user.nombre} className={`${sz} rounded-full object-cover shadow-md ring-2 ring-white`} />;
   }
   return (
-    <div className={`${sz} rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center font-bold text-white shadow-md ${ring} ring-white`}>
+    <div className={`${sz} rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center font-bold text-white shadow-md ring-2 ring-white`}>
       {initials}
+    </div>
+  );
+}
+
+// ── Notifications Modal ───────────────────────────────────────────────────────
+function NotificationsModal({ show, onClose, notifs, onMarkRead, onMarkAllRead, unreadCount }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) onClose();
+    };
+    if (show) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [show, onClose]);
+
+  if (!show) return null;
+
+  return (
+    <div className="absolute right-0 mt-2 w-96 z-50" ref={ref}>
+      <div className="notif-modal bg-white rounded-2xl shadow-[0_8px_40px_-8px_rgba(0,0,0,0.20)] border border-gray-100 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-[#1C355E]/8 flex items-center justify-center">
+              <BellIcon />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-gray-800 leading-tight">Notificaciones</p>
+              {unreadCount > 0 && (
+                <p className="text-[11px] text-gray-400">{unreadCount} sin leer</p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            {unreadCount > 0 && (
+              <button
+                onClick={onMarkAllRead}
+                className="flex items-center gap-1.5 text-xs font-semibold text-[#1C355E] hover:text-[#FFCD00] px-2.5 py-1.5 rounded-lg hover:bg-[#1C355E]/5 transition-all"
+                title="Marcar todas como leídas"
+              >
+                <CheckAllIcon />
+                Todas leídas
+              </button>
+            )}
+            <button onClick={onClose} className="w-7 h-7 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors">
+              <CloseIcon />
+            </button>
+          </div>
+        </div>
+
+        {/* List */}
+        <div className="max-h-[400px] overflow-y-auto divide-y divide-gray-50">
+          {notifs.length === 0 ? (
+            <div className="px-5 py-12 text-center">
+              <p className="text-4xl mb-3">🔕</p>
+              <p className="text-sm font-semibold text-gray-500">No tienes notificaciones</p>
+              <p className="text-xs text-gray-400 mt-1">Aquí aparecerán tus alertas y novedades</p>
+            </div>
+          ) : (
+            notifs.map((n) => {
+              const nInfo = NOTIF_ICONS[n.type] || NOTIF_ICONS.sistema;
+              return (
+                <button
+                  key={n.id}
+                  onClick={() => onMarkRead(n.id)}
+                  className={`w-full flex items-start gap-3 px-5 py-4 text-left transition-all duration-150
+                    ${n.read ? "opacity-60 hover:opacity-80 hover:bg-gray-50" : "hover:bg-blue-50/40 bg-blue-50/20"}`}
+                >
+                  {/* Icon */}
+                  <div className={`w-9 h-9 rounded-xl ${nInfo.bg} flex items-center justify-center text-base flex-shrink-0 mt-0.5`}>
+                    {nInfo.emoji}
+                  </div>
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className={`text-sm font-bold leading-tight ${n.read ? "text-gray-500" : "text-gray-800"}`}>
+                        {n.title}
+                      </p>
+                      {!n.read && <span className="w-2 h-2 rounded-full bg-[#FFCD00] flex-shrink-0 mt-1" />}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed line-clamp-2">{n.body}</p>
+                    <p className="text-[10px] text-gray-400 font-medium mt-1">{n.time}</p>
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+
+        {/* Footer */}
+        {notifs.length > 0 && (
+          <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/50">
+            <p className="text-xs text-gray-400 text-center font-medium">
+              {notifs.filter(n => n.read).length} de {notifs.length} leídas
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -96,20 +208,18 @@ function ConfigModal({ show, onClose, user }) {
           </button>
         </div>
         <div className="p-5 space-y-4">
-          {/* Notificaciones */}
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">Notificaciones</p>
             <div className="space-y-3">
               {[
-                { label: "Notificaciones push",   key: "notif_push",  default: true },
-                { label: "Alertas de citas",       key: "notif_citas", default: true },
-                { label: "Recordatorios",          key: "notif_recordatorios", default: false },
-              ].map(({ label, key, default: def }) => (
-                <Toggle key={key} label={label} storageKey={key} defaultVal={def} />
+                { label: "Notificaciones push",   key: "notif_push",         defaultVal: true  },
+                { label: "Alertas de citas",       key: "notif_citas",        defaultVal: true  },
+                { label: "Recordatorios",          key: "notif_recordatorios",defaultVal: false },
+              ].map(({ label, key, defaultVal }) => (
+                <Toggle key={key} label={label} storageKey={key} defaultVal={defaultVal} />
               ))}
             </div>
           </div>
-          {/* Apariencia */}
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">Apariencia</p>
             <div className="flex items-center justify-between">
@@ -142,11 +252,11 @@ function Toggle({ label, storageKey, defaultVal }) {
       <span className="text-sm font-medium text-gray-600">{label}</span>
       <button
         onClick={toggle}
-        className={`relative w-10 h-5.5 rounded-full transition-all duration-200 ${on ? "bg-[#1C355E]" : "bg-gray-200"}`}
+        className={`relative rounded-full transition-all duration-200 ${on ? "bg-[#1C355E]" : "bg-gray-200"}`}
         style={{ height: "22px", width: "40px" }}
       >
-        <span className={`absolute top-0.5 left-0.5 w-4.5 h-4.5 bg-white rounded-full shadow transition-transform duration-200
-          ${on ? "translate-x-[18px]" : "translate-x-0"}`}
+        <span
+          className={`absolute top-0.5 left-0.5 bg-white rounded-full shadow transition-transform duration-200 ${on ? "translate-x-[18px]" : "translate-x-0"}`}
           style={{ width: "18px", height: "18px" }}
         />
       </button>
@@ -158,13 +268,17 @@ function Toggle({ label, storageKey, defaultVal }) {
 // TOPBAR
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Topbar() {
-  const [open, setOpen]         = useState(false);
+  const [open, setOpen]             = useState(false);
   const [showConfig, setShowConfig] = useState(false);
-  const [user, setUser]         = useState(null);
-  const [visible, setVisible]   = useState(false);
-  const [notifDot, setNotifDot] = useState(true);
-  const router  = useRouter();
-  const dropRef = useRef(null);
+  const [showNotifs, setShowNotifs] = useState(false);
+  const [user, setUser]             = useState(null);
+  const [visible, setVisible]       = useState(false);
+  const [notifs, setNotifs]         = useState(INITIAL_NOTIFS);
+  const router   = useRouter();
+  const dropRef  = useRef(null);
+  const notifRef = useRef(null);
+
+  const unreadCount = notifs.filter((n) => !n.read).length;
 
   useEffect(() => {
     const stored = localStorage.getItem("user");
@@ -172,7 +286,6 @@ export default function Topbar() {
     setTimeout(() => setVisible(true), 50);
   }, []);
 
-  // Refrescar avatar al volver al foco (por si se editó en perfil)
   useEffect(() => {
     const onFocus = () => {
       const stored = localStorage.getItem("user");
@@ -182,6 +295,7 @@ export default function Topbar() {
     return () => window.removeEventListener("focus", onFocus);
   }, []);
 
+  // Close user dropdown on outside click
   useEffect(() => {
     const handler = (e) => {
       if (dropRef.current && !dropRef.current.contains(e.target)) setOpen(false);
@@ -196,15 +310,22 @@ export default function Topbar() {
     router.push("/auth/login");
   };
 
+  const handleMarkRead = (id) => {
+    setNotifs((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
+  };
+
+  const handleMarkAllRead = () => {
+    setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
   const roleBadge = ROLE_STYLES[user?.rol] || ROLE_STYLES.default;
   const rolLabel  = ROL_DISPLAY[user?.rol] || user?.rol?.toUpperCase() || "USUARIO";
   const fullName  = user?.nombre || "Cargando...";
 
-  // Ruta de perfil según rol
-  const perfilPath = user?.rol === "comercial"
-    ? "/dashboard/asesor/perfil"
-    : user?.rol === "adminComercial"
-    ? "/dashboard/admin/perfil"
+  // Profile path based on role
+  const perfilPath =
+    user?.rol === "comercial"       ? "/dashboard/asesor/perfil"
+    : user?.rol === "adminComercial" ? "/dashboard/admin/perfil"
     : "/dashboard/programador/perfil";
 
   return (
@@ -214,6 +335,7 @@ export default function Topbar() {
         @keyframes topbarIn  { from { opacity:0; transform:translateY(-100%); } to { opacity:1; transform:translateY(0); } }
         .topbar-in   { animation: topbarIn .35s cubic-bezier(.22,1,.36,1) forwards; }
         .dropdown-in { animation: slideDown .2s cubic-bezier(.34,1.56,.64,1) forwards; }
+        .notif-modal { animation: slideDown .2s cubic-bezier(.34,1.56,.64,1) forwards; }
         .notif-pulse { animation: pulse 2s cubic-bezier(.4,0,.6,1) infinite; }
       `}</style>
 
@@ -239,21 +361,36 @@ export default function Topbar() {
 
           {/* RIGHT */}
           <div className="flex items-center gap-2">
-            {/* Bell */}
-            <button
-              onClick={() => setNotifDot(false)}
-              className="relative w-9 h-9 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100 active:scale-95 transition-all duration-150"
-            >
-              <BellIcon />
-              {notifDot && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#F5C800] notif-pulse ring-2 ring-white" />}
-            </button>
+
+            {/* Bell with notifications dropdown */}
+            <div className="relative" ref={notifRef}>
+              <button
+                onClick={() => { setShowNotifs((v) => !v); setOpen(false); }}
+                className="relative w-9 h-9 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100 active:scale-95 transition-all duration-150"
+              >
+                <BellIcon />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 min-w-[14px] h-3.5 px-0.5 rounded-full bg-[#F5C800] ring-2 ring-white flex items-center justify-center notif-pulse">
+                    <span className="text-[8px] font-black text-[#1C355E] leading-none">{unreadCount}</span>
+                  </span>
+                )}
+              </button>
+              <NotificationsModal
+                show={showNotifs}
+                onClose={() => setShowNotifs(false)}
+                notifs={notifs}
+                onMarkRead={handleMarkRead}
+                onMarkAllRead={handleMarkAllRead}
+                unreadCount={unreadCount}
+              />
+            </div>
 
             <div className="w-px h-6 bg-gray-200 mx-1" />
 
             {/* Avatar dropdown */}
             <div className="relative" ref={dropRef}>
               <button
-                onClick={() => setOpen(!open)}
+                onClick={() => { setOpen(!open); setShowNotifs(false); }}
                 className="flex items-center gap-2.5 pl-1 pr-3 py-1 rounded-xl hover:bg-gray-100 active:scale-95 transition-all duration-150 group"
               >
                 <Avatar user={user} />
@@ -265,7 +402,6 @@ export default function Topbar() {
 
               {open && (
                 <div className="dropdown-in absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-[0_8px_40px_-8px_rgba(0,0,0,0.18)] border border-gray-100 overflow-hidden z-50">
-
                   {/* User card */}
                   <div className="px-4 pt-4 pb-3 bg-gradient-to-br from-gray-50 to-white border-b border-gray-100">
                     <div className="flex items-center gap-3">
@@ -305,12 +441,10 @@ export default function Topbar() {
                       color="red"
                     />
                   </div>
-
                 </div>
               )}
             </div>
           </div>
-
         </div>
       </header>
 

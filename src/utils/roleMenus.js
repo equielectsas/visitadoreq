@@ -77,6 +77,12 @@ export const roleMenus = {
       icon: "report",
       path: "/dashboard/admin/reportes",
     },
+    {
+      section: "Análisis",
+      name: "Calendario",
+      icon: "calendar",
+      path: "/dashboard/admin/calendar",
+    },
   ],
 
   comercial: [
@@ -84,7 +90,7 @@ export const roleMenus = {
       section: "Principal",
       name: "Inicio",
       icon: "dashboard",
-      path: "/dashboard/asesor",
+      path: "/dashboard/programador",
     },
     // "Crear Visita" — ítem especial con action, no path de ruta
     // El sidebar lo identifica por el campo action: "crear-visita"
@@ -111,6 +117,12 @@ export const roleMenus = {
       name: "Clientes",
       icon: "users",
       path: "/dashboard/asesor/clientes",
+    },
+    {
+      section: "Análisis",
+      name: "Calendario",
+      icon: "calendar",
+      path: "/dashboard/programador/calendar",
     },
   ],
 };
