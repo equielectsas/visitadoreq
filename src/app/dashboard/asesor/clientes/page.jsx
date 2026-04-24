@@ -24,7 +24,9 @@ export default function Clientes() {
       const res = await fetch(
         `/api/clientes?limit=${LIMIT}&offset=${offset}`,
         {
-          headers: { Authorization: token },
+          headers: {
+          Authorization: `Bearer ${token}`,
+        }
         }
       );
 
