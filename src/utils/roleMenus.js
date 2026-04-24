@@ -1,3 +1,8 @@
+/**
+ * roleMenus.js — Menú de navegación por rol.
+ * NOTA: No existen "visitas perdidas". Las citas se REPROGRAMAN.
+ */
+ 
 export const roleMenus = {
   adminPlataforma: [
     {
@@ -11,10 +16,9 @@ export const roleMenus = {
       name: "Citas",
       icon: "calendar",
       children: [
-        { name: "Activas",    path: "/dashboard/programador/citas?estado=activa" },
+        { name: "Activas",    path: "/dashboard/programador/citas?estado=activa"    },
         { name: "Pendientes", path: "/dashboard/programador/citas?estado=pendiente" },
         { name: "Realizadas", path: "/dashboard/programador/citas?estado=realizada" },
-        { name: "Perdidas",   path: "/dashboard/programador/citas?estado=perdida" },
       ],
     },
     {
@@ -48,7 +52,7 @@ export const roleMenus = {
       path: "/dashboard/programador/calendar",
     },
   ],
-
+ 
   adminComercial: [
     {
       section: "Principal",
@@ -61,8 +65,9 @@ export const roleMenus = {
       name: "Citas",
       icon: "calendar",
       children: [
-        { name: "Activas",    path: "/dashboard/admin/citas?estado=activa" },
+        { name: "Activas",    path: "/dashboard/admin/citas?estado=activa"    },
         { name: "Pendientes", path: "/dashboard/admin/citas?estado=pendiente" },
+        { name: "Realizadas", path: "/dashboard/admin/citas?estado=realizada" },
       ],
     },
     {
@@ -96,23 +101,20 @@ export const roleMenus = {
       path: "/dashboard/admin/calendar",
     },
   ],
-
+ 
   comercial: [
     {
       section: "Principal",
       name: "Inicio",
       icon: "dashboard",
-      path: "/dashboard/programador",
+      path: "/dashboard/asesor/inicio",
     },
-    // "Crear Visita" — ítem especial con action, no path de ruta
-    // El sidebar lo identifica por el campo action: "crear-visita"
-    // y dispara el modal directamente sin navegar
     {
       section: "Principal",
       name: "Crear Visita",
       icon: "plus",
-      action: "crear-visita",   // ← el sidebar intercepta esto
-      path: "/dashboard/asesor",  // fallback path (mismo dashboard)
+      action: "crear-visita",
+      path: "/dashboard/asesor",
     },
     {
       section: "Principal",
@@ -120,7 +122,7 @@ export const roleMenus = {
       icon: "calendar",
       children: [
         { name: "Pendientes", path: "/dashboard/asesor/citas?estado=pendiente" },
-        { name: "Activas",    path: "/dashboard/asesor/citas?estado=activa" },
+        { name: "Activas",    path: "/dashboard/asesor/citas?estado=activa"    },
         { name: "Realizadas", path: "/dashboard/asesor/citas?estado=realizada" },
       ],
     },
@@ -131,10 +133,16 @@ export const roleMenus = {
       path: "/dashboard/asesor/clientes",
     },
     {
+      section: "Gestión",
+      name: "Contactos",
+      icon: "contact",
+      path: "/dashboard/asesor/contactos",
+    },
+    {
       section: "Análisis",
-      name: "Calendario",
-      icon: "calendar",
-      path: "/dashboard/programador/calendar",
+      name: "Reportes",
+      icon: "report",
+      path: "/dashboard/asesor/reportes",
     },
   ],
 };
