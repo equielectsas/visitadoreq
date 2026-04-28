@@ -84,18 +84,36 @@ const MODAL_STYLES = `
 function SuccessModal({ onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm anim-fadeIn" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm anim-fadeIn"
+        onClick={onClose}
+      />
+
       <div className="relative bg-white rounded-2xl shadow-2xl p-10 flex flex-col items-center gap-4 anim-scaleIn z-10 max-w-sm w-full mx-4">
         <div className="absolute inset-0 rounded-2xl ring-4 ring-green-200 pointer-events-none" />
-        <div className="anim-bounceIn"><CheckCircleIcon /></div>
-        <h2 className="text-2xl font-bold text-gray-800 tracking-tight">Inicio Exitoso!</h2>
+
+        {/* 👇 AQUÍ CAMBIAS EL ÍCONO POR EL GIF */}
+        <div className="anim-bounceIn">
+          <img
+            src="/assets/gif/success.gif"
+            alt="success"
+            className="w-24 h-24 object-contain"
+          />
+        </div>
+
+        <h2 className="text-2xl font-bold text-gray-800 tracking-tight">
+          ¡Inicio Exitoso!
+        </h2>
+
         <p className="text-gray-500 text-sm text-center">
           Bienvenido de vuelta. Redirigiendo al dashboard...
         </p>
+
         <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mt-2">
           <div className="h-full bg-[#F5C800] rounded-full anim-progress" />
         </div>
       </div>
+
       <style>{MODAL_STYLES}</style>
     </div>
   );

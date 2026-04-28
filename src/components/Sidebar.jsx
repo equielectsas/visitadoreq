@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { roleMenus } from "@/utils/roleMenus";
-import { useSearchParams } from "next/navigation";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const ICONS = {
@@ -46,19 +45,15 @@ const ICONS = {
   ),
 };
 
-// Colores de dots para sub-items de citas
 const DOT_COLORS = {
   activa:    "bg-emerald-400",
   pendiente: "bg-yellow-400",
   realizada: "bg-blue-400",
 };
-
 function getDotColor(path) {
   const match = path.match(/estado=(\w+)/);
   return match ? (DOT_COLORS[match[1]] || "bg-gray-400") : "bg-gray-400";
 }
-
-// Mapeo de nombres de ítems a iconos
 function getIcon(item) {
   const name = item.icon || item.name?.toLowerCase();
   if (!name) return ICONS.default;
@@ -70,48 +65,35 @@ function getIcon(item) {
   if (name.includes("chart") || name.includes("analisis")) return ICONS.chart;
   return ICONS[name] || ICONS.default;
 }
-
-// Rol → etiqueta legible
 const ROL_LABELS = {
   adminPlataforma: "Admin Plataforma",
   adminComercial:  "Admin Comercial",
   comercial:       "Asesor Comercial",
 };
 
-// ── Componentes base ──────────────────────────────────────────────────────────
+// ── Sub-components ────────────────────────────────────────────────────────────
 function ChevronIcon({ open }) {
   return (
-    <svg
-      className={`w-3.5 h-3.5 transition-transform duration-300 ${open ? "rotate-90" : ""}`}
-      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
-    >
+    <svg className={`w-3.5 h-3.5 transition-transform duration-300 ${open ? "rotate-90" : ""}`}
+      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
     </svg>
   );
 }
-
 function SectionLabel({ label }) {
   return (
     <div className="px-6 pt-5 pb-1">
-      <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-600">
-        {label}
-      </span>
+      <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-600">{label}</span>
     </div>
   );
 }
-
-function NavItem({ href, icon, label, pathname }) {
-const isActive = pathname === href;
-
+function NavItem({ href, icon, label, pathname, onNavigate }) {
+  const isActive = pathname === href;
   return (
-    <Link href={href}>
-      <span className={`
-        group flex items-center gap-3 px-4 py-2.5 rounded-xl mx-2 text-sm font-medium
-        transition-all duration-200 cursor-pointer
-        ${isActive
-          ? "bg-[#FFCD00] text-[#1C355E] shadow-[0_4px_14px_-2px_rgba(255,205,0,0.4)]"
-          : "text-gray-300 hover:bg-white/8 hover:text-white"}
-      `}>
+    <Link href={href} onClick={onNavigate}>
+      <span className={`group flex items-center gap-3 px-4 py-2.5 rounded-xl mx-2 text-sm font-medium transition-all duration-200 cursor-pointer
+        ${isActive ? "bg-[#FFCD00] text-[#1C355E] shadow-[0_4px_14px_-2px_rgba(255,205,0,0.4)]"
+          : "text-gray-300 hover:bg-white/8 hover:text-white"}`}>
         <span className={`transition-colors flex-shrink-0 ${isActive ? "text-[#1C355E]" : "text-gray-500 group-hover:text-[#FFCD00]"}`}>
           {icon}
         </span>
@@ -121,58 +103,37 @@ const isActive = pathname === href;
     </Link>
   );
 }
-
-function SubItem({ href, label, dotColor, pathname, searchParams }) {
+function SubItem({ href, label, dotColor, pathname, searchParams, onNavigate }) {
   const currentEstado = searchParams.get("estado");
-
   const basePath = href.split("?")[0];
-  const hrefEstado = href.includes("estado=")
-    ? href.split("estado=")[1]
-    : null;
-
-  const isActive =
-    pathname === basePath &&
-    currentEstado === hrefEstado;
-
+  const hrefEstado = href.includes("estado=") ? href.split("estado=")[1] : null;
+  const isActive = pathname === basePath && currentEstado === hrefEstado;
   return (
-    <Link href={href}>
-      <span className={`
-        flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium
-        transition-all duration-150 cursor-pointer
-        ${isActive ? "text-[#FFCD00] bg-white/5" : "text-gray-400 hover:text-white hover:bg-white/5"}
-      `}>
+    <Link href={href} onClick={onNavigate}>
+      <span className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer
+        ${isActive ? "text-[#FFCD00] bg-white/5" : "text-gray-400 hover:text-white hover:bg-white/5"}`}>
         <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? "bg-[#FFCD00]" : dotColor}`} />
         {label}
       </span>
     </Link>
   );
 }
-
 function NavGroup({ icon, label, isOpen, onToggle, children, pathname, basePath }) {
   const isChildActive = pathname?.startsWith(basePath);
   return (
     <div>
-      <button
-        onClick={onToggle}
-        style={{ width: "calc(100% - 16px)" }}
-        className={`
-          group flex items-center gap-3 px-4 py-2.5 rounded-xl mx-2 text-sm font-medium
-          transition-all duration-200
-          ${isChildActive && !isOpen ? "bg-white/8 text-white" : "text-gray-300 hover:bg-white/8 hover:text-white"}
-        `}
-      >
+      <button onClick={onToggle} style={{ width: "calc(100% - 16px)" }}
+        className={`group flex items-center gap-3 px-4 py-2.5 rounded-xl mx-2 text-sm font-medium transition-all duration-200
+          ${isChildActive && !isOpen ? "bg-white/8 text-white" : "text-gray-300 hover:bg-white/8 hover:text-white"}`}>
         <span className={`flex-shrink-0 transition-colors ${isChildActive ? "text-[#FFCD00]" : "text-gray-500 group-hover:text-[#FFCD00]"}`}>
           {icon}
         </span>
         <span className="flex-1 text-left">{label}</span>
-        {isChildActive && !isOpen && (
-          <span className="w-1.5 h-1.5 rounded-full bg-[#FFCD00] mr-1 flex-shrink-0" />
-        )}
+        {isChildActive && !isOpen && <span className="w-1.5 h-1.5 rounded-full bg-[#FFCD00] mr-1 flex-shrink-0" />}
         <span className={`transition-colors flex-shrink-0 ${isChildActive ? "text-[#FFCD00]" : "text-gray-500 group-hover:text-gray-300"}`}>
           <ChevronIcon open={isOpen} />
         </span>
       </button>
-
       <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? "max-h-64 opacity-100" : "max-h-0 opacity-0"}`}>
         <div className="ml-5 mr-2 mt-1 mb-1 pl-3 border-l border-white/10 space-y-0.5">
           {children}
@@ -182,45 +143,9 @@ function NavGroup({ icon, label, isOpen, onToggle, children, pathname, basePath 
   );
 }
 
-// ── Sidebar dinámico ──────────────────────────────────────────────────────────
-export default function Sidebar() {
-  const [openMenu, setOpenMenu]   = useState(null);
-  const [mounted, setMounted]     = useState(false);
-  const [rol, setRol]             = useState(null);
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
-  useEffect(() => { setMounted(true); }, []);
-
-  useEffect(() => {
-    const user = JSON.parse(localStorage.getItem("user") || "null");
-    if (user?.rol) setRol(user.rol);
-  }, []);
-
-  // Abrir automáticamente el grupo si una ruta hija está activa
-  useEffect(() => {
-    if (!rol || !pathname) return;
-    const menu = roleMenus[rol] || [];
-    for (const item of menu) {
-      if (item.children) {
-        const anyActive = item.children.some((sub) =>
-          pathname.startsWith(sub.path.split("?")[0])
-        );
-        if (anyActive) {
-          setOpenMenu(item.name);
-          break;
-        }
-      }
-    }
-  }, [pathname, rol]);
-
-  const toggleMenu = (name) => setOpenMenu(openMenu === name ? null : name);
-
+// ── Sidebar content (shared between desktop & mobile drawer) ──────────────────
+function SidebarContent({ rol, openMenu, toggleMenu, pathname, searchParams, onNavigate }) {
   const menu = roleMenus[rol] || [];
-
-  // Agrupar ítems por sección (Principal → primero, Gestión → intermedios, Análisis → últimos)
-  // Simplificamos: renderizamos todo bajo "Principal" si no hay sección definida
-  // Podés agregar un campo `section` en roleMenus si querés separar visualmente
   const sectionMap = {};
   for (const item of menu) {
     const section = item.section || "Principal";
@@ -230,119 +155,173 @@ export default function Sidebar() {
 
   return (
     <>
+      {/* Logo */}
+      <div className="px-5 pt-6 pb-5 border-b border-white/8">
+        <div className="flex items-center justify-center">
+          <img src="/assets/img/login/logo.png" alt="Equielect" className="h-9 w-auto" />
+        </div>
+      </div>
+
+      {/* Role pill */}
+      <div className="px-4 pt-4 pb-1">
+        <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-white/6 border border-white/8">
+          <div className="flex flex-col flex-1 min-w-0">
+            <p className="text-[10px] text-[#98989A] font-semibold uppercase tracking-widest leading-none">Panel</p>
+            <p className="text-white text-xs font-bold leading-tight mt-0.5 truncate">
+              {ROL_LABELS[rol] || rol || "Cargando..."}
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <span className="text-[10px] text-emerald-400 font-semibold">Activo</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" />
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 py-2 space-y-0.5 overflow-y-auto">
+        {Object.entries(sectionMap).map(([section, items]) => (
+          <div key={section}>
+            <SectionLabel label={section} />
+            {items.map((item) => {
+              if (item.children?.length) {
+                const basePath = item.children[0].path.split("?")[0].replace(/\/[^/]+$/, "");
+                return (
+                  <NavGroup key={item.name} icon={getIcon(item)} label={item.name}
+                    isOpen={openMenu === item.name} onToggle={() => toggleMenu(item.name)}
+                    pathname={pathname} basePath={basePath}>
+                    {item.children.map((sub) => (
+                      <SubItem key={sub.path} href={sub.path} label={sub.name}
+                        dotColor={getDotColor(sub.path)} pathname={pathname}
+                        searchParams={searchParams} onNavigate={onNavigate} />
+                    ))}
+                  </NavGroup>
+                );
+              }
+              return (
+                <NavItem key={item.path} href={item.path} icon={getIcon(item)}
+                  label={item.name} pathname={pathname} onNavigate={onNavigate} />
+              );
+            })}
+          </div>
+        ))}
+        {!rol && (
+          <div className="px-6 py-4">
+            <p className="text-xs text-gray-500">Cargando menú...</p>
+          </div>
+        )}
+      </nav>
+
+      {/* Footer */}
+      <div className="px-4 pb-5 pt-3 border-t border-white/5">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/4">
+          <div className="w-6 h-6 rounded-lg bg-white/8 flex items-center justify-center flex-shrink-0">
+            <svg className="w-3 h-3 text-[#98989A]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-[10px] text-[#98989A] font-medium leading-none">Version</p>
+            <p className="text-gray-400 text-xs font-semibold leading-tight mt-0.5">v2.4.1 &bull; Estable</p>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Main Sidebar export ───────────────────────────────────────────────────────
+// Acepta `mobileOpen` y `onClose` desde LayoutDashboard para el drawer móvil
+export default function Sidebar({ mobileOpen = false, onClose = () => {} }) {
+  const [openMenu, setOpenMenu] = useState(null);
+  const [mounted, setMounted]   = useState(false);
+  const [rol, setRol]           = useState(null);
+  const pathname     = usePathname();
+  const searchParams = useSearchParams();
+
+  useEffect(() => { setMounted(true); }, []);
+
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem("user") || "null");
+    if (user?.rol) setRol(user.rol);
+  }, []);
+
+  useEffect(() => {
+    if (!rol || !pathname) return;
+    const menu = roleMenus[rol] || [];
+    for (const item of menu) {
+      if (item.children) {
+        const anyActive = item.children.some((sub) => pathname.startsWith(sub.path.split("?")[0]));
+        if (anyActive) { setOpenMenu(item.name); break; }
+      }
+    }
+  }, [pathname, rol]);
+
+  // Cerrar sidebar móvil al cambiar de ruta
+  useEffect(() => { onClose(); }, [pathname]);
+
+  // Bloquear scroll del body cuando el drawer está abierto en mobile
+  useEffect(() => {
+    if (mobileOpen) document.body.style.overflow = "hidden";
+    else document.body.style.overflow = "";
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileOpen]);
+
+  const toggleMenu = (name) => setOpenMenu(openMenu === name ? null : name);
+
+  const sharedProps = { rol, openMenu, toggleMenu, pathname, searchParams, onNavigate: onClose };
+
+  return (
+    <>
       <style>{`
         @keyframes sidebarIn {
           from { opacity:0; transform: translateX(-16px); }
           to   { opacity:1; transform: translateX(0); }
         }
         .sidebar-in { animation: sidebarIn .38s cubic-bezier(.22,1,.36,1) forwards; }
+        @keyframes drawerIn {
+          from { transform: translateX(-100%); }
+          to   { transform: translateX(0); }
+        }
+        .drawer-in { animation: drawerIn .3s cubic-bezier(.22,1,.36,1) forwards; }
       `}</style>
 
-      <aside className={`
-        relative flex flex-col w-64 min-h-screen flex-shrink-0
-        bg-[#1C355E]
-        border-r border-white/5
+      {/* ── DESKTOP sidebar (oculto en mobile/tablet) ── */}
+      <aside className={`hidden lg:flex flex-col w-64 min-h-screen flex-shrink-0
+        bg-[#1C355E] border-r border-white/5
         shadow-[4px_0_28px_-4px_rgba(0,0,0,0.35)]
-        ${mounted ? "sidebar-in" : "opacity-0"}
-      `}>
-
-        {/* Logo */}
-        <div className="px-5 pt-6 pb-5 border-b border-white/8">
-          <div className="flex items-center justify-center">
-            <img src="/assets/img/login/logo.png" alt="Equielect" className="h-9 w-auto" />
-          </div>
-        </div>
-
-        {/* Role pill */}
-        <div className="px-4 pt-4 pb-1">
-          <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-white/6 border border-white/8">
-            <div className="flex flex-col flex-1 min-w-0">
-              <p className="text-[10px] text-[#98989A] font-semibold uppercase tracking-widest leading-none">Panel</p>
-              <p className="text-white text-xs font-bold leading-tight mt-0.5 truncate">
-                {ROL_LABELS[rol] || rol || "Cargando..."}
-              </p>
-            </div>
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              <span className="text-[10px] text-emerald-400 font-semibold">Activo</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" />
-            </div>
-          </div>
-        </div>
-
-        {/* Navigation dinámica */}
-        <nav className="flex-1 py-2 space-y-0.5 overflow-y-auto">
-          {Object.entries(sectionMap).map(([section, items]) => (
-            <div key={section}>
-              <SectionLabel label={section} />
-
-              {items.map((item) => {
-                // Grupo con hijos
-                if (item.children?.length) {
-                  // Sacar el basePath del primer hijo
-                  const basePath = item.children[0].path.split("?")[0].replace(/\/[^/]+$/, "");
-
-                  return (
-                    <NavGroup
-                      key={item.name}
-                      icon={getIcon(item)}
-                      label={item.name}
-                      isOpen={openMenu === item.name}
-                      onToggle={() => toggleMenu(item.name)}
-                      pathname={pathname}
-                      basePath={basePath}
-                    >
-                      {item.children.map((sub) => (
-                        <SubItem
-                          key={sub.path}
-                          href={sub.path}
-                          label={sub.name}
-                          dotColor={getDotColor(sub.path)}
-                          pathname={pathname}
-                          searchParams={searchParams}
-                        />
-                      ))}
-                    </NavGroup>
-                  );
-                }
-
-                // Ítem simple
-                return (
-                  <NavItem
-                    key={item.path}
-                    href={item.path}
-                    icon={getIcon(item)}
-                    label={item.name}
-                    pathname={pathname}
-                  />
-                );
-              })}
-            </div>
-          ))}
-
-          {/* Si no hay rol cargado aún */}
-          {!rol && mounted && (
-            <div className="px-6 py-4">
-              <p className="text-xs text-gray-500">Cargando menú...</p>
-            </div>
-          )}
-        </nav>
-
-        {/* Footer */}
-        <div className="px-4 pb-5 pt-3 border-t border-white/5">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/4">
-            <div className="w-6 h-6 rounded-lg bg-white/8 flex items-center justify-center flex-shrink-0">
-              <svg className="w-3 h-3 text-[#98989A]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-[10px] text-[#98989A] font-medium leading-none">Version</p>
-              <p className="text-gray-400 text-xs font-semibold leading-tight mt-0.5">v2.4.1 &bull; Estable</p>
-            </div>
-          </div>
-        </div>
-
+        ${mounted ? "sidebar-in" : "opacity-0"}`}>
+        <SidebarContent {...sharedProps} onNavigate={() => {}} />
       </aside>
+
+      {/* ── MOBILE drawer overlay ── */}
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={onClose}
+          />
+          {/* Drawer panel */}
+          <aside className="relative z-10 flex flex-col w-72 max-w-[85vw] min-h-screen
+            bg-[#1C355E] border-r border-white/5
+            shadow-[4px_0_40px_-4px_rgba(0,0,0,0.5)]
+            drawer-in">
+            {/* Close button */}
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20
+                flex items-center justify-center transition-colors z-10"
+              aria-label="Cerrar menú"
+            >
+              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <SidebarContent {...sharedProps} />
+          </aside>
+        </div>
+      )}
     </>
   );
 }

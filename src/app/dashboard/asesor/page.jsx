@@ -1326,7 +1326,7 @@ export default function AsesorCitasPage() {
             <div className="text-center py-16 bg-white rounded-2xl border border-gray-100">
               <p className="text-4xl mb-3">📋</p>
               <p className="text-gray-400 font-medium">No hay visitas {filtro !== "todos" ? `"${filtro}"` : ""}</p>
-              <button onClick={() => setShowCrear(true)} className="mt-4 px-5 py-2.5 rounded-xl bg-[#FFCD00] text-[#1C355E] text-sm font-bold hover:bg-yellow-400">Crear primera visita</button>
+              <button onClick={() => setShowCrear(true)} className="mt-4 px-5 py-2.5 rounded-xl bg-[#FFCD00] text-[#1C355E] text-sm font-bold hover:bg-yellow-400">Crear visita</button>
             </div>
           )}
           {filtered.map((cita, i) => (
