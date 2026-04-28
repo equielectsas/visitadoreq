@@ -351,9 +351,7 @@ export default function Topbar() {
               <p className="text-[15px] font-bold text-gray-800 truncate leading-tight">
                 {rolLabel}
                 <span className="ml-2 inline-flex items-center">
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${roleBadge.bg} ${roleBadge.text}`}>
-                    {roleBadge.label}
-                  </span>
+                  
                 </span>
               </p>
             </div>

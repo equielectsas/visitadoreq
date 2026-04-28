@@ -69,7 +69,6 @@ function Badge({ status }) {
     activa:    "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
     pendiente: "bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200",
     realizada: "bg-blue-50 text-blue-700 ring-1 ring-blue-200",
-    perdida:   "bg-red-50 text-red-600 ring-1 ring-red-200",
   };
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold capitalize ${map[status] || "bg-gray-100 text-gray-600"}`}>
@@ -144,7 +143,7 @@ export default function AdminDashboard() {
     if (stored) setAllCitas(JSON.parse(stored));
   }, []);
 
-  const tabs = ["todos", "activa", "pendiente", "realizada", "perdida"];
+  const tabs = ["todos", "activa", "pendiente", "realizada"];
   const filtered = activeTab === "todos"
     ? allCitas
     : allCitas.filter((c) => c.estado === activeTab);
@@ -157,7 +156,6 @@ export default function AdminDashboard() {
   const RESOLVED_DATA = [
     { label: "Realizadas", value: allCitas.length > 0 ? Math.round((allCitas.filter(c => c.estado === "realizada").length / allCitas.length) * 100) : 64, color: "bg-[#1C355E]" },
     { label: "Pendientes", value: allCitas.length > 0 ? Math.round((allCitas.filter(c => c.estado === "pendiente").length / allCitas.length) * 100) : 22, color: "bg-[#FFCD00]" },
-    { label: "Perdidas",   value: allCitas.length > 0 ? Math.round((allCitas.filter(c => c.estado === "perdida").length  / allCitas.length) * 100) : 14, color: "bg-[#98989A]/60" },
   ];
 
   return (
@@ -258,8 +256,6 @@ export default function AdminDashboard() {
                 <p className="text-[10px] text-[#98989A] font-medium">Pendientes</p>
               </div>
               <div>
-                <p className="text-base font-black text-[#98989A]">{allCitas.filter(c => c.estado === "perdida").length || 14}</p>
-                <p className="text-[10px] text-[#98989A] font-medium">Perdidas</p>
               </div>
             </div>
           </div>
@@ -296,7 +292,6 @@ export default function AdminDashboard() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filtered.length > 0 ? filtered.map((v, i) => {
-                  const isFinished = v.estado === "realizada" || v.estado === "perdida";
                   return (
                     <tr key={v.id || i} className="hover:bg-[#F4F6FA]/60 transition-colors group">
                       <td className="px-6 py-3.5 font-semibold text-[#1C355E]">{v.cliente || v.nombre}</td>

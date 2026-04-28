@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { roleMenus } from "@/utils/roleMenus";
+import { useSearchParams } from "next/navigation";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const ICONS = {
@@ -50,7 +51,6 @@ const DOT_COLORS = {
   activa:    "bg-emerald-400",
   pendiente: "bg-yellow-400",
   realizada: "bg-blue-400",
-  perdida:   "bg-red-400",
 };
 
 function getDotColor(path) {
@@ -101,9 +101,7 @@ function SectionLabel({ label }) {
 }
 
 function NavItem({ href, icon, label, pathname }) {
-  const isActive =
-    pathname === href ||
-    (pathname?.startsWith(href + "/") && href !== "/" );
+const isActive = pathname === href;
 
   return (
     <Link href={href}>
@@ -124,10 +122,17 @@ function NavItem({ href, icon, label, pathname }) {
   );
 }
 
-function SubItem({ href, label, dotColor, pathname }) {
-  // Comparar solo el pathname sin query params para la ruta, pero comparar completo para query
-  const isActive = pathname === href || 
-    (typeof window !== "undefined" && window.location.href.includes(href));
+function SubItem({ href, label, dotColor, pathname, searchParams }) {
+  const currentEstado = searchParams.get("estado");
+
+  const basePath = href.split("?")[0];
+  const hrefEstado = href.includes("estado=")
+    ? href.split("estado=")[1]
+    : null;
+
+  const isActive =
+    pathname === basePath &&
+    currentEstado === hrefEstado;
 
   return (
     <Link href={href}>
@@ -183,6 +188,7 @@ export default function Sidebar() {
   const [mounted, setMounted]     = useState(false);
   const [rol, setRol]             = useState(null);
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -292,6 +298,7 @@ export default function Sidebar() {
                           label={sub.name}
                           dotColor={getDotColor(sub.path)}
                           pathname={pathname}
+                          searchParams={searchParams}
                         />
                       ))}
                     </NavGroup>

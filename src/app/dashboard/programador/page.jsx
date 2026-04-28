@@ -69,7 +69,6 @@ function Badge({ status }) {
     activa:    "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
     pendiente: "bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200",
     realizada: "bg-blue-50 text-blue-700 ring-1 ring-blue-200",
-    perdida:   "bg-red-50 text-red-600 ring-1 ring-red-200",
   };
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold capitalize ${map[status] || "bg-gray-100 text-gray-600"}`}>
@@ -144,7 +143,7 @@ export default function AdminDashboard() {
     if (stored) setAllCitas(JSON.parse(stored));
   }, []);
 
-  const tabs = ["todos", "activa", "pendiente", "realizada", "perdida"];
+  const tabs = ["todos", "activa", "pendiente", "realizada"];
   const filtered = activeTab === "todos"
     ? allCitas
     : allCitas.filter((c) => c.estado === activeTab);
@@ -157,7 +156,6 @@ export default function AdminDashboard() {
   const RESOLVED_DATA = [
     { label: "Realizadas", value: allCitas.length > 0 ? Math.round((allCitas.filter(c => c.estado === "realizada").length / allCitas.length) * 100) : 64, color: "bg-[#1C355E]" },
     { label: "Pendientes", value: allCitas.length > 0 ? Math.round((allCitas.filter(c => c.estado === "pendiente").length / allCitas.length) * 100) : 22, color: "bg-[#FFCD00]" },
-    { label: "Perdidas",   value: allCitas.length > 0 ? Math.round((allCitas.filter(c => c.estado === "perdida").length  / allCitas.length) * 100) : 14, color: "bg-[#98989A]/60" },
   ];
 
   return (
@@ -257,10 +255,6 @@ export default function AdminDashboard() {
                 <p className="text-base font-black text-yellow-500">{allCitas.filter(c => c.estado === "pendiente").length || 22}</p>
                 <p className="text-[10px] text-[#98989A] font-medium">Pendientes</p>
               </div>
-              <div>
-                <p className="text-base font-black text-[#98989A]">{allCitas.filter(c => c.estado === "perdida").length || 14}</p>
-                <p className="text-[10px] text-[#98989A] font-medium">Perdidas</p>
-              </div>
             </div>
           </div>
         </div>
@@ -294,38 +288,7 @@ export default function AdminDashboard() {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
-                {filtered.length > 0 ? filtered.map((v, i) => {
-                  const isFinished = v.estado === "realizada" || v.estado === "perdida";
-                  return (
-                    <tr key={v.id || i} className="hover:bg-[#F4F6FA]/60 transition-colors group">
-                      <td className="px-6 py-3.5 font-semibold text-[#1C355E]">{v.cliente || v.nombre}</td>
-                      <td className="px-6 py-3.5 text-gray-500 text-xs font-medium">{v.asesorNombre || "—"}</td>
-                      <td className="px-6 py-3.5 text-gray-500 text-xs">{v.fecha}</td>
-                      <td className="px-6 py-3.5 text-gray-500 text-xs">{v.hora}</td>
-                      <td className="px-6 py-3.5"><Badge status={v.estado} /></td>
-                      <td className="px-6 py-3.5">
-                        {isFinished && (
-                          <button
-                            onClick={() => setSelectedVisit(v)}
-                            className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-[#1C355E] text-gray-400 hover:text-white
-                              flex items-center justify-center transition-all duration-150 opacity-0 group-hover:opacity-100"
-                            title="Ver detalles"
-                          >
-                            <EyeIcon />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                }) : (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-10 text-center text-[#98989A] text-sm font-medium">
-                      No hay visitas en este estado
-                    </td>
-                  </tr>
-                )}
-              </tbody>
+              <tbody></tbody>
             </table>
           </div>
           <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between">

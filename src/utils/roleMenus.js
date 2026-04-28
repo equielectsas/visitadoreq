@@ -29,6 +29,12 @@ export const roleMenus = {
     },
     {
       section: "Gestión",
+      name: "Tareas Pendientes",
+      icon: "steps",
+      path: "/dashboard/programador/tareas",
+    },
+    {
+      section: "Gestión",
       name: "Usuarios",
       icon: "users",
       path: "/dashboard/programador/usuarios",
@@ -111,9 +117,8 @@ export const roleMenus = {
     },
     {
       section: "Principal",
-      name: "Crear Visita",
-      icon: "plus",
-      action: "crear-visita",
+      name: "Crear visita",
+      icon: "Visita",
       path: "/dashboard/asesor",
     },
     {
@@ -134,15 +139,21 @@ export const roleMenus = {
     },
     {
       section: "Gestión",
-      name: "Contactos",
-      icon: "contact",
-      path: "/dashboard/asesor/contactos",
+      name: "Tareas Pendientes",
+      icon: "steps",
+      path: "/dashboard/programador/tareas",
     },
     {
       section: "Análisis",
       name: "Reportes",
       icon: "report",
       path: "/dashboard/asesor/reportes",
+    },
+    {
+      section: "Análisis",
+      name: "Calendario",
+      icon: "calendar",
+      path: "/dashboard/asesor/calendario",
     },
   ],
 };
