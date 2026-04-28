@@ -253,7 +253,7 @@ export default function LoginPage() {
                 </span>
                 <input
                   type={showPassword ? "text" : "password"}
-                  placeholder="Contrasena"
+                  placeholder="Contraseña"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -277,7 +277,7 @@ export default function LoginPage() {
                   <div className="absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 peer-checked:translate-x-4" />
                 </div>
                 <span className="text-sm text-gray-600 group-hover:text-gray-800 transition-colors">
-                  Recordar contrasena
+                  Recordar credenciales
                 </span>
               </label>
 
@@ -301,7 +301,7 @@ export default function LoginPage() {
           <div className="flex-1 bg-white hidden lg:flex">
             <div
               className="flex-1 bg-cover bg-center"
-              style={{ backgroundImage: "url('/assets/img/login/il.png')" }}
+              style={{ backgroundImage: "url('/assets/img/login/principal.jpg')" }}
             />
           </div>
 
