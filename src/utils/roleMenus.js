@@ -141,7 +141,7 @@ export const roleMenus = {
       section: "Gestión",
       name: "Tareas Pendientes",
       icon: "steps",
-      path: "/dashboard/programador/tareas",
+      path: "/dashboard/asesor/tareas",
     },
     {
       section: "Análisis",
