@@ -1,17 +1,15 @@
 "use client";
 
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import LayoutDashboard from "@/components/LayoutDashboard";
-import { useState } from "react";
 
-export default function CitasPage() {
+function CitasContent() {
   const searchParams = useSearchParams();
   const estado = searchParams.get("estado") || "todas";
 
-  // 🔥 Estado real (luego aquí irá backend)
   const [citas, setCitas] = useState([]);
 
-  // 🔍 Filtrar por estado
   const citasFiltradas =
     estado === "todas"
       ? citas
@@ -23,16 +21,12 @@ export default function CitasPage() {
         Citas {estado}
       </h1>
 
-      {/* 🔥 RESUMEN */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-
         <Card title="Activas" value={citas.filter(c => c.estado === "activa").length} />
         <Card title="Pendientes" value={citas.filter(c => c.estado === "pendiente").length} />
         <Card title="Realizadas" value={citas.filter(c => c.estado === "realizada").length} />
-
       </div>
 
-      {/* 📊 TABLA */}
       <div className="bg-white rounded shadow overflow-hidden">
         <table className="w-full text-left">
           <thead className="bg-[var(--color-secondary)] text-white">
@@ -66,7 +60,15 @@ export default function CitasPage() {
   );
 }
 
-// 🧩 Card reutilizable
+export default function CitasPage() {
+  return (
+    <Suspense fallback={<div>Cargando citas...</div>}>
+      <CitasContent />
+    </Suspense>
+  );
+}
+
+// 🧩 Card
 function Card({ title, value }) {
   return (
     <div className="bg-white p-4 rounded shadow text-center">
