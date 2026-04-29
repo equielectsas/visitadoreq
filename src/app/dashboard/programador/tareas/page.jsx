@@ -1,9 +1,98 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useState } from "react";
 import LayoutDashboard from "@/components/LayoutDashboard";
+
+// ─── DATOS FAKE ───────────────────────────────────────────────────────────────
+const MOCK_ASESORES = [
+  {
+    id: 1,
+    nombre: "Carlos Mendoza",
+    email: "c.mendoza@safix.co",
+    avatar: "CM",
+    alertaPendiente: false,
+    tareas: [
+      {
+        id: 101,
+        empresa: "Distribuidora Nacional S.A.S",
+        nit: "900.123.456-7",
+        ciudad: "Bogotá",
+        telefono: "601 234 5678",
+        contacto: "Luis Martínez",
+        fechaVisita: "2025-04-20",
+        completada: false,
+        checkboxes: { presentacionProductos: true, demostracion: false, cotizacion: false, seguimientoPago: false, firmaContrato: false },
+        notas: "Cliente interesado pero pendiente demo.",
+      },
+      {
+        id: 102,
+        empresa: "Grupo Logístico del Norte",
+        nit: "700.456.789-1",
+        ciudad: "Barranquilla",
+        telefono: "605 456 7890",
+        contacto: "Pedro Camacho",
+        fechaVisita: "2025-04-22",
+        completada: false,
+        checkboxes: { presentacionProductos: false, demostracion: false, cotizacion: false, seguimientoPago: false, firmaContrato: false },
+        notas: "",
+      },
+    ],
+  },
+  {
+    id: 2,
+    nombre: "Valentina Torres",
+    email: "v.torres@safix.co",
+    avatar: "VT",
+    alertaPendiente: true,
+    tareas: [
+      {
+        id: 201,
+        empresa: "Comercial Andina Ltda.",
+        nit: "800.987.654-3",
+        ciudad: "Medellín",
+        telefono: "604 345 6789",
+        contacto: "Sandra Ríos",
+        fechaVisita: "2025-04-18",
+        completada: true,
+        checkboxes: { presentacionProductos: true, demostracion: true, cotizacion: true, seguimientoPago: true, firmaContrato: true },
+        notas: "Completada exitosamente.",
+      },
+      {
+        id: 202,
+        empresa: "Inversiones del Pacífico",
+        nit: "890.321.654-2",
+        ciudad: "Cali",
+        telefono: "602 111 2233",
+        contacto: "Jorge Ospina",
+        fechaVisita: "2025-04-25",
+        completada: false,
+        checkboxes: { presentacionProductos: true, demostracion: false, cotizacion: false, seguimientoPago: false, firmaContrato: false },
+        notas: "",
+      },
+    ],
+  },
+  {
+    id: 3,
+    nombre: "Diego Ramírez",
+    email: "d.ramirez@safix.co",
+    avatar: "DR",
+    alertaPendiente: false,
+    tareas: [
+      {
+        id: 301,
+        empresa: "Soluciones Tech Caribe",
+        nit: "901.234.567-8",
+        ciudad: "Cartagena",
+        telefono: "605 567 8901",
+        contacto: "Marcela Herrera",
+        fechaVisita: "2025-04-15",
+        completada: false,
+        checkboxes: { presentacionProductos: true, demostracion: true, cotizacion: false, seguimientoPago: false, firmaContrato: false },
+        notas: "Esperando aprobación de presupuesto.",
+      },
+    ],
+  },
+];
 
 const CHECKBOX_LABELS = {
   presentacionProductos: "Presentación de productos",
@@ -14,9 +103,7 @@ const CHECKBOX_LABELS = {
 };
 
 export default function TareasPendientesAdmin() {
-
-  const [asesores, setAsesores] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [asesores, setAsesores] = useState(MOCK_ASESORES);
   const [selectedTarea, setSelectedTarea] = useState(null);
   const [selectedAsesor, setSelectedAsesor] = useState(null);
   const [toast, setToast] = useState(null);
@@ -24,129 +111,26 @@ export default function TareasPendientesAdmin() {
   const [filterAsesor, setFilterAsesor] = useState("todos");
   const [filterEstado, setFilterEstado] = useState("todas");
 
-  // ─── FETCH TODOS LOS ASESORES + SUS VISITAS ──────────────────────────────
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      // Traer asesores con su alerta y sus visitas en una sola query
-      const { data, error } = await supabase
-        .from("asesores")
-        .select(`
-          id,
-          nombre,
-          email,
-          avatar,
-          alerta_pendiente,
-          visitas (
-            id,
-            empresa,
-            nit,
-            ciudad,
-            telefono,
-            contacto,
-            fecha_visita,
-            completada,
-            checkboxes,
-            notas
-          )
-        `)
-        .order("nombre", { ascending: true });
-
-      if (error) throw error;
-
-      const normalized = (data || []).map((a) => ({
-        id: a.id,
-        nombre: a.nombre,
-        email: a.email,
-        avatar: a.avatar || a.nombre?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase(),
-        alertaPendiente: a.alerta_pendiente ?? false,
-        tareas: (a.visitas || []).map((v) => ({
-          id: v.id,
-          empresa: v.empresa,
-          nit: v.nit,
-          ciudad: v.ciudad,
-          telefono: v.telefono,
-          contacto: v.contacto,
-          fechaVisita: v.fecha_visita,
-          completada: v.completada,
-          checkboxes: v.checkboxes ?? {
-            presentacionProductos: false,
-            demostracion: false,
-            cotizacion: false,
-            seguimientoPago: false,
-            firmaContrato: false,
-          },
-          notas: v.notas ?? "",
-        })),
-      }));
-
-      setAsesores(normalized);
-    } catch (err) {
-      console.error("Error cargando asesores:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [supabase]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  // ─── TOAST ────────────────────────────────────────────────────────────────
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
   };
-  
 
-  // ─── ENVIAR CORREO — llama tu API route ──────────────────────────────────
-  const handleEnviarCorreo = async (asesor) => {
-    try {
-      const res = await fetch("/api/notificaciones/correo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          asesorId: asesor.id,
-          nombre: asesor.nombre,
-          email: asesor.email,
-          pendientes: asesor.tareas.filter((t) => !t.completada).length,
-        }),
-      });
-      if (!res.ok) throw new Error("Error enviando correo");
-      showToast(`📧 Correo enviado a ${asesor.nombre} (${asesor.email})`);
-    } catch (err) {
-      console.error(err);
-      showToast(`❌ Error al enviar correo a ${asesor.nombre}`, "error");
-    }
+  // Simula envío de correo (fake)
+  const handleEnviarCorreo = (asesor) => {
+    showToast(`📧 Correo enviado a ${asesor.nombre} (${asesor.email})`);
   };
 
-  // ─── ENVIAR ALERTA — actualiza flag en Supabase ───────────────────────────
-  // El asesor verá la alerta en rojo la próxima vez que inicie sesión.
-  // En asesor/tareas/page.jsx el flag se resetea a false cuando él entra.
-  const confirmarAlerta = async () => {
+  // Simula alerta: activa el flag en el estado local (fake)
+  const confirmarAlerta = () => {
     if (!confirmAlert) return;
-    try {
-      const { error } = await supabase
-        .from("asesores")
-        .update({ alerta_pendiente: true })
-        .eq("id", confirmAlert.id);
-
-      if (error) throw error;
-
-      // Actualizar estado local inmediatamente
-      setAsesores((prev) =>
-        prev.map((a) =>
-          a.id === confirmAlert.id ? { ...a, alertaPendiente: true } : a
-        )
-      );
-
-      showToast(`🔔 Alerta activada para ${confirmAlert.nombre}. La verá al próximo ingreso.`);
-    } catch (err) {
-      console.error(err);
-      showToast(`❌ Error enviando alerta`, "error");
-    } finally {
-      setConfirmAlert(null);
-    }
+    setAsesores((prev) =>
+      prev.map((a) =>
+        a.id === confirmAlert.id ? { ...a, alertaPendiente: true } : a
+      )
+    );
+    showToast(`🔔 Alerta activada para ${confirmAlert.nombre}. La verá al próximo ingreso.`);
+    setConfirmAlert(null);
   };
 
   const openTarea = (asesor, tarea) => {
@@ -154,7 +138,6 @@ export default function TareasPendientesAdmin() {
     setSelectedTarea(tarea);
   };
 
-  // ─── DATOS FILTRADOS ──────────────────────────────────────────────────────
   const asList = asesores
     .filter((a) => filterAsesor === "todos" || a.id.toString() === filterAsesor)
     .flatMap((a) =>
@@ -172,23 +155,9 @@ export default function TareasPendientesAdmin() {
   const todasTareas = asesores.flatMap((a) => a.tareas);
   const totalPendientes = todasTareas.filter((t) => !t.completada).length;
   const totalCompletadas = todasTareas.filter((t) => t.completada).length;
-  const asesoresConPendientes = asesores.filter((a) =>
-    a.tareas.some((t) => !t.completada)
-  ).length;
+  const asesoresConPendientes = asesores.filter((a) => a.tareas.some((t) => !t.completada)).length;
 
-  const checkedCount = (tarea) =>
-    Object.values(tarea.checkboxes).filter(Boolean).length;
-
-  // ─── RENDER ───────────────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <LayoutDashboard>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 300, color: "#aaa", fontFamily: "DM Sans, sans-serif" }}>
-          Cargando datos...
-        </div>
-      </LayoutDashboard>
-    );
-  }
+  const checkedCount = (tarea) => Object.values(tarea.checkboxes).filter(Boolean).length;
 
   return (
     <LayoutDashboard>
@@ -213,12 +182,10 @@ export default function TareasPendientesAdmin() {
         .adm-select:focus { border-color: #111; }
         .adm-filter-btn {
           padding: 6px 14px; border-radius: 20px; border: 1.5px solid #e5e7eb;
-          font-size: 0.8rem; font-weight: 500; cursor: pointer; background: #fff; color: #555;
-          transition: all 0.15s;
+          font-size: 0.8rem; font-weight: 500; cursor: pointer; background: #fff; color: #555; transition: all 0.15s;
         }
         .adm-filter-btn.active { background: #111; color: #fff; border-color: #111; }
 
-        /* TABLE */
         .adm-table-wrap { background: #fff; border: 1px solid #f0f0f0; border-radius: 16px; overflow: hidden; }
         .adm-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
         .adm-table thead tr { background: #f9fafb; }
@@ -231,7 +198,6 @@ export default function TareasPendientesAdmin() {
         .adm-asesor-cell { display: flex; align-items: center; gap: 10px; }
         .adm-asesor-name { font-weight: 500; color: #111; font-size: 0.88rem; }
         .adm-asesor-email { font-size: 0.75rem; color: #aaa; }
-
         .adm-empresa { font-weight: 500; color: #111; }
         .adm-nit { font-size: 0.75rem; color: #aaa; font-family: monospace; }
 
@@ -248,8 +214,7 @@ export default function TareasPendientesAdmin() {
         .adm-btn {
           width: 32px; height: 32px; border-radius: 8px; border: 1.5px solid #e5e7eb;
           background: #fff; cursor: pointer; display: flex; align-items: center;
-          justify-content: center; font-size: 0.9rem; transition: all 0.15s;
-          position: relative;
+          justify-content: center; font-size: 0.9rem; transition: all 0.15s; position: relative;
         }
         .adm-btn:hover { border-color: #ccc; background: #f3f4f6; }
         .adm-btn.alert-btn:hover { background: #fef2f2; border-color: #fecaca; }
@@ -263,10 +228,8 @@ export default function TareasPendientesAdmin() {
         }
 
         .adm-alerta-activa { font-size: 0.72rem; color: #ef4444; font-weight: 600; }
-        .adm-alerta-vista { font-size: 0.72rem; color: #22c55e; font-weight: 600; }
         .adm-alerta-no { font-size: 0.72rem; color: #f59e0b; font-weight: 600; }
 
-        /* MODAL DETALLE */
         .adm-overlay {
           position: fixed; inset: 0; background: rgba(0,0,0,0.45);
           display: flex; align-items: center; justify-content: center;
@@ -306,7 +269,6 @@ export default function TareasPendientesAdmin() {
         .adm-check-text.done { color: #166534; }
         .adm-notas-box { background: #f9fafb; border-radius: 10px; padding: 12px 14px; font-size: 0.85rem; color: #555; line-height: 1.6; min-height: 56px; }
 
-        /* MODAL CONFIRM ALERTA */
         .adm-confirm-overlay {
           position: fixed; inset: 0; background: rgba(0,0,0,0.5);
           display: flex; align-items: center; justify-content: center;
@@ -314,8 +276,7 @@ export default function TareasPendientesAdmin() {
         }
         .adm-confirm-modal {
           background: #fff; border-radius: 20px; width: 100%; max-width: 400px;
-          padding: 28px 28px 24px; box-shadow: 0 25px 60px rgba(0,0,0,0.2);
-          animation: modalIn 0.2s ease;
+          padding: 28px 28px 24px; box-shadow: 0 25px 60px rgba(0,0,0,0.2); animation: modalIn 0.2s ease;
         }
         .adm-confirm-icon { font-size: 2.2rem; text-align: center; margin-bottom: 12px; }
         .adm-confirm-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1.1rem; color: #111; text-align: center; margin-bottom: 8px; }
@@ -327,13 +288,11 @@ export default function TareasPendientesAdmin() {
         .adm-confirm-ok { flex: 1; padding: 10px; border: none; border-radius: 10px; background: #ef4444; font-size: 0.88rem; color: #fff; font-weight: 600; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
         .adm-confirm-ok:hover { background: #dc2626; }
 
-        /* TOAST */
         .adm-toast {
           position: fixed; bottom: 24px; right: 24px; z-index: 2000;
           background: #111; color: #fff; padding: 12px 20px;
           border-radius: 12px; font-size: 0.88rem; font-weight: 500;
-          box-shadow: 0 8px 30px rgba(0,0,0,0.2);
-          animation: toastIn 0.2s ease;
+          box-shadow: 0 8px 30px rgba(0,0,0,0.2); animation: toastIn 0.2s ease;
         }
         @keyframes toastIn {
           from { opacity: 0; transform: translateY(10px); }
@@ -344,7 +303,6 @@ export default function TareasPendientesAdmin() {
       `}</style>
 
       <div className="adm-root">
-        {/* HEADER */}
         <div className="flex justify-between flex-wrap gap-3 mb-1">
           <div>
             <h1 className="adm-title">Tareas Pendientes — Admin</h1>
@@ -352,7 +310,6 @@ export default function TareasPendientesAdmin() {
           </div>
         </div>
 
-        {/* STATS */}
         <div className="adm-stats">
           <div className="adm-stat">
             <div className="adm-stat-label">Total tareas</div>
@@ -372,19 +329,13 @@ export default function TareasPendientesAdmin() {
           </div>
         </div>
 
-        {/* FILTROS */}
         <div className="adm-filters">
-          <select
-            className="adm-select"
-            value={filterAsesor}
-            onChange={(e) => setFilterAsesor(e.target.value)}
-          >
+          <select className="adm-select" value={filterAsesor} onChange={(e) => setFilterAsesor(e.target.value)}>
             <option value="todos">Todos los asesores</option>
             {asesores.map((a) => (
               <option key={a.id} value={a.id.toString()}>{a.nombre}</option>
             ))}
           </select>
-
           {[
             { key: "todas", label: "Todas" },
             { key: "pendientes", label: "Pendientes" },
@@ -400,7 +351,6 @@ export default function TareasPendientesAdmin() {
           ))}
         </div>
 
-        {/* TABLA */}
         <div className="adm-table-wrap">
           {asList.length === 0 ? (
             <div className="adm-empty">No hay tareas con estos filtros</div>
@@ -423,7 +373,6 @@ export default function TareasPendientesAdmin() {
                   const total = Object.keys(tarea.checkboxes).length;
                   const done = checkedCount(tarea);
                   const pct = Math.round((done / total) * 100);
-
                   return (
                     <tr key={tarea.id}>
                       <td>
@@ -443,10 +392,7 @@ export default function TareasPendientesAdmin() {
                       <td>{tarea.fechaVisita}</td>
                       <td>
                         <div className="adm-progress-bar">
-                          <div
-                            className={`adm-progress-fill ${tarea.completada ? "done" : ""}`}
-                            style={{ width: `${pct}%` }}
-                          />
+                          <div className={`adm-progress-fill ${tarea.completada ? "done" : ""}`} style={{ width: `${pct}%` }} />
                         </div>
                         <div className="adm-progress-label">{done}/{total}</div>
                       </td>
@@ -459,38 +405,18 @@ export default function TareasPendientesAdmin() {
                         {tarea.completada ? (
                           <span style={{ color: "#ccc", fontSize: "0.75rem" }}>—</span>
                         ) : asesor.alertaPendiente ? (
-                          // Alerta activa: el asesor aún NO la ha visto
                           <span className="adm-alerta-activa">🔴 Enviada</span>
                         ) : (
-                          // Sin alerta activa
                           <span className="adm-alerta-no">— Sin alerta</span>
                         )}
                       </td>
                       <td>
                         <div className="adm-actions">
-                          <button
-                            className="adm-btn view-btn"
-                            title="Ver detalle"
-                            onClick={() => openTarea(asesor, tarea)}
-                          >
-                            👁
-                          </button>
+                          <button className="adm-btn view-btn" title="Ver detalle" onClick={() => openTarea(asesor, tarea)}>👁</button>
                           {!tarea.completada && (
                             <>
-                              <button
-                                className="adm-btn alert-btn"
-                                title="Enviar alerta al asesor"
-                                onClick={() => setConfirmAlert(asesor)}
-                              >
-                                🔔
-                              </button>
-                              <button
-                                className="adm-btn email-btn"
-                                title="Enviar correo al asesor"
-                                onClick={() => handleEnviarCorreo(asesor)}
-                              >
-                                ✉️
-                              </button>
+                              <button className="adm-btn alert-btn" title="Enviar alerta al asesor" onClick={() => setConfirmAlert(asesor)}>🔔</button>
+                              <button className="adm-btn email-btn" title="Enviar correo al asesor" onClick={() => handleEnviarCorreo(asesor)}>✉️</button>
                             </>
                           )}
                         </div>
@@ -506,17 +432,12 @@ export default function TareasPendientesAdmin() {
 
       {/* MODAL DETALLE TAREA */}
       {selectedTarea && selectedAsesor && (
-        <div
-          className="adm-overlay"
-          onClick={(e) => e.target === e.currentTarget && setSelectedTarea(null)}
-        >
+        <div className="adm-overlay" onClick={(e) => e.target === e.currentTarget && setSelectedTarea(null)}>
           <div className="adm-modal">
             <div className="adm-modal-header">
               <div>
                 <div className="adm-modal-title">{selectedTarea.empresa}</div>
-                <div className="adm-modal-sub">
-                  Asesor: {selectedAsesor.nombre} · NIT: {selectedTarea.nit}
-                </div>
+                <div className="adm-modal-sub">Asesor: {selectedAsesor.nombre} · NIT: {selectedTarea.nit}</div>
               </div>
               <button className="adm-close-btn" onClick={() => setSelectedTarea(null)}>✕</button>
             </div>
@@ -534,7 +455,6 @@ export default function TareasPendientesAdmin() {
                   </div>
                 ))}
               </div>
-
               <div className="adm-section-title">Actividades</div>
               <div className="adm-check-list-ro">
                 {Object.entries(CHECKBOX_LABELS).map(([key, label]) => {
@@ -547,12 +467,9 @@ export default function TareasPendientesAdmin() {
                   );
                 })}
               </div>
-
               <div className="adm-section-title">Notas</div>
               <div className="adm-notas-box">
-                {selectedTarea.notas || (
-                  <span style={{ color: "#ccc" }}>Sin notas registradas</span>
-                )}
+                {selectedTarea.notas || <span style={{ color: "#ccc" }}>Sin notas registradas</span>}
               </div>
             </div>
           </div>
@@ -566,30 +483,18 @@ export default function TareasPendientesAdmin() {
             <div className="adm-confirm-icon">🔔</div>
             <div className="adm-confirm-title">Enviar alerta al asesor</div>
             <div className="adm-confirm-desc">
-              Se activará una notificación en rojo para{" "}
-              <strong>{confirmAlert.nombre}</strong> la próxima vez que ingrese
-              al dashboard, recordándole sus tareas pendientes. La alerta se
-              desactiva automáticamente cuando el asesor la ve.
+              Se activará una notificación en rojo para <strong>{confirmAlert.nombre}</strong> la próxima vez que ingrese al dashboard, recordándole sus tareas pendientes.
             </div>
             <div className="adm-confirm-btns">
-              <button
-                className="adm-confirm-cancel"
-                onClick={() => setConfirmAlert(null)}
-              >
-                Cancelar
-              </button>
-              <button className="adm-confirm-ok" onClick={confirmarAlerta}>
-                Enviar alerta
-              </button>
+              <button className="adm-confirm-cancel" onClick={() => setConfirmAlert(null)}>Cancelar</button>
+              <button className="adm-confirm-ok" onClick={confirmarAlerta}>Enviar alerta</button>
             </div>
           </div>
         </div>
       )}
 
       {/* TOAST */}
-      {toast && (
-        <div className={`adm-toast ${toast.type}`}>{toast.msg}</div>
-      )}
+      {toast && <div className={`adm-toast ${toast.type}`}>{toast.msg}</div>}
     </LayoutDashboard>
   );
 }

@@ -1,8 +1,82 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
-import { createBrowserClient } from "@supabase/ssr";
-import { supabase } from "@/lib/api/supabaseClient";
+import { useState } from "react";
 import LayoutDashboard from "@/components/LayoutDashboard";
+
+// ─── DATOS FAKE ───────────────────────────────────────────────────────────────
+const MOCK_TAREAS = [
+  {
+    id: 1,
+    empresa: "Distribuidora Nacional S.A.S",
+    nit: "900.123.456-7",
+    ciudad: "Bogotá",
+    telefono: "601 234 5678",
+    contacto: "Luis Martínez",
+    fechaVisita: "2025-04-20",
+    completada: false,
+    checkboxes: {
+      presentacionProductos: true,
+      demostracion: false,
+      cotizacion: false,
+      seguimientoPago: false,
+      firmaContrato: false,
+    },
+    notas: "Cliente interesado pero pendiente demo.",
+  },
+  {
+    id: 2,
+    empresa: "Comercial Andina Ltda.",
+    nit: "800.987.654-3",
+    ciudad: "Medellín",
+    telefono: "604 345 6789",
+    contacto: "Sandra Ríos",
+    fechaVisita: "2025-04-18",
+    completada: true,
+    checkboxes: {
+      presentacionProductos: true,
+      demostracion: true,
+      cotizacion: true,
+      seguimientoPago: true,
+      firmaContrato: true,
+    },
+    notas: "Completada exitosamente. Firmaron contrato.",
+  },
+  {
+    id: 3,
+    empresa: "Grupo Logístico del Norte",
+    nit: "700.456.789-1",
+    ciudad: "Barranquilla",
+    telefono: "605 456 7890",
+    contacto: "Pedro Camacho",
+    fechaVisita: "2025-04-22",
+    completada: false,
+    checkboxes: {
+      presentacionProductos: false,
+      demostracion: false,
+      cotizacion: false,
+      seguimientoPago: false,
+      firmaContrato: false,
+    },
+    notas: "",
+  },
+  {
+    id: 4,
+    empresa: "Soluciones Tech Caribe",
+    nit: "901.234.567-8",
+    ciudad: "Cartagena",
+    telefono: "605 567 8901",
+    contacto: "Marcela Herrera",
+    fechaVisita: "2025-04-15",
+    completada: false,
+    checkboxes: {
+      presentacionProductos: true,
+      demostracion: true,
+      cotizacion: false,
+      seguimientoPago: false,
+      firmaContrato: false,
+    },
+    notas: "Esperando aprobación de presupuesto.",
+  },
+];
 
 const CHECKBOX_LABELS = {
   presentacionProductos: "Presentación de productos",
@@ -13,96 +87,14 @@ const CHECKBOX_LABELS = {
 };
 
 export default function TareasPendientesAsesor() {
-    const [session, setSession] = useState(null);
-
-    useEffect(() => {
-    const getSession = async () => {
-        const { data } = await supabase.auth.getSession();
-        setSession(data.session);
-    };
-
-    getSession();
-    }, []);
-
-  const [tareas, setTareas] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tareas, setTareas] = useState(MOCK_TAREAS);
   const [selected, setSelected] = useState(null);
   const [localChecks, setLocalChecks] = useState({});
   const [localNotas, setLocalNotas] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState("todas");
 
-  // ─── FETCH TAREAS REALES DEL ASESOR LOGUEADO ─────────────────────────────
-  const fetchTareas = useCallback(async () => {
-    if (!session?.user?.id) return;
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("visitas")
-        .select(`
-          id,
-          empresa,
-          nit,
-          ciudad,
-          telefono,
-          contacto,
-          fecha_visita,
-          completada,
-          checkboxes,
-          notas
-        `)
-        .eq("asesor_id", session.user.id)
-        .order("fecha_visita", { ascending: true });
-
-      if (error) throw error;
-
-      // Normalizar estructura para compatibilidad con el componente
-      const normalized = (data || []).map((v) => ({
-        id: v.id,
-        empresa: v.empresa,
-        nit: v.nit,
-        ciudad: v.ciudad,
-        telefono: v.telefono,
-        contacto: v.contacto,
-        fechaVisita: v.fecha_visita,
-        completada: v.completada,
-        checkboxes: v.checkboxes ?? {
-          presentacionProductos: false,
-          demostracion: false,
-          cotizacion: false,
-          seguimientoPago: false,
-          firmaContrato: false,
-        },
-        notas: v.notas ?? "",
-      }));
-
-      setTareas(normalized);
-    } catch (err) {
-      console.error("Error cargando visitas:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [session?.user?.id, supabase]);
-
-  useEffect(() => {
-    if (status === "authenticated") fetchTareas();
-  }, [status, fetchTareas]);
-
-  // ─── MARCAR ALERTA COMO VISTA ─────────────────────────────────────────────
-  useEffect(() => {
-    const marcarAlertaVista = async () => {
-      if (!session?.user?.id) return;
-      await supabase
-        .from("asesores")
-        .update({ alerta_pendiente: false })
-        .eq("id", session.user.id);
-    };
-    if (status === "authenticated") marcarAlertaVista();
-  }, [session?.user?.id, status, supabase]);
-
-  // ─── FILTROS ──────────────────────────────────────────────────────────────
   const pendientes = tareas.filter((t) => !t.completada);
   const completadas = tareas.filter((t) => t.completada);
   const filtered =
@@ -112,7 +104,6 @@ export default function TareasPendientesAsesor() {
       ? completadas
       : tareas;
 
-  // ─── MODAL ────────────────────────────────────────────────────────────────
   const openModal = (tarea) => {
     setSelected(tarea);
     setLocalChecks({ ...tarea.checkboxes });
@@ -145,63 +136,30 @@ export default function TareasPendientesAsesor() {
     setHasChanges(changed);
   };
 
-  // ─── GUARDAR EN SUPABASE ──────────────────────────────────────────────────
-  const handleSave = async () => {
-    setSaving(true);
+  const handleSave = () => {
     const allDone = Object.values(localChecks).every(Boolean);
     const nuevaCompletada = allDone ? true : selected.completada;
 
-    try {
-      const { error } = await supabase
-        .from("visitas")
-        .update({
-          checkboxes: localChecks,
-          notas: localNotas,
-          completada: nuevaCompletada,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", selected.id);
-
-      if (error) throw error;
-
-      // Actualizar estado local
-      setTareas((prev) =>
-        prev.map((t) =>
-          t.id === selected.id
-            ? { ...t, checkboxes: localChecks, notas: localNotas, completada: nuevaCompletada }
-            : t
-        )
-      );
-      setSelected((prev) => ({
-        ...prev,
-        checkboxes: localChecks,
-        notas: localNotas,
-        completada: nuevaCompletada,
-      }));
-      setHasChanges(false);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch (err) {
-      console.error("Error guardando visita:", err);
-      alert("Error al guardar. Intenta nuevamente.");
-    } finally {
-      setSaving(false);
-    }
+    setTareas((prev) =>
+      prev.map((t) =>
+        t.id === selected.id
+          ? { ...t, checkboxes: localChecks, notas: localNotas, completada: nuevaCompletada }
+          : t
+      )
+    );
+    setSelected((prev) => ({
+      ...prev,
+      checkboxes: localChecks,
+      notas: localNotas,
+      completada: nuevaCompletada,
+    }));
+    setHasChanges(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
   };
 
   const checkedCount = (tarea) =>
     Object.values(tarea.checkboxes).filter(Boolean).length;
-
-  // ─── RENDER ───────────────────────────────────────────────────────────────
-  if (status === "loading" || loading) {
-    return (
-      <LayoutDashboard>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 300, color: "#aaa", fontFamily: "DM Sans, sans-serif" }}>
-          Cargando visitas...
-        </div>
-      </LayoutDashboard>
-    );
-  }
 
   return (
     <LayoutDashboard>
@@ -239,10 +197,7 @@ export default function TareasPendientesAsesor() {
         .tp-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
         .tp-empresa { font-weight: 600; font-size: 0.95rem; color: #111; line-height: 1.3; }
         .tp-nit { font-size: 0.75rem; color: #aaa; margin-top: 2px; font-family: monospace; }
-        .tp-badge {
-          font-size: 0.7rem; padding: 3px 10px; border-radius: 20px; font-weight: 600;
-          white-space: nowrap;
-        }
+        .tp-badge { font-size: 0.7rem; padding: 3px 10px; border-radius: 20px; font-weight: 600; white-space: nowrap; }
         .tp-badge.pending { background: #fef2f2; color: #ef4444; }
         .tp-badge.done { background: #f0fdf4; color: #22c55e; }
         .tp-info { display: flex; flex-direction: column; gap: 4px; margin: 10px 0; }
@@ -252,7 +207,6 @@ export default function TareasPendientesAsesor() {
         .tp-progress-fill { height: 100%; border-radius: 4px; background: #111; transition: width 0.4s; }
         .tp-progress-fill.done { background: #22c55e; }
         .tp-progress-label { font-size: 0.72rem; color: #aaa; margin-top: 5px; }
-        /* MODAL */
         .tp-overlay {
           position: fixed; inset: 0; background: rgba(0,0,0,0.45);
           display: flex; align-items: center; justify-content: center;
@@ -276,8 +230,7 @@ export default function TareasPendientesAsesor() {
         .tp-close-btn {
           width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid #e5e7eb;
           background: #fff; cursor: pointer; display: flex; align-items: center;
-          justify-content: center; font-size: 1rem; color: #555; flex-shrink: 0;
-          transition: all 0.15s;
+          justify-content: center; font-size: 1rem; color: #555; flex-shrink: 0; transition: all 0.15s;
         }
         .tp-close-btn:hover { background: #f3f4f6; border-color: #ccc; }
         .tp-modal-body { padding: 20px 24px; }
@@ -289,8 +242,7 @@ export default function TareasPendientesAsesor() {
         .tp-check-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
         .tp-check-item {
           display: flex; align-items: center; gap: 12px; padding: 12px 14px;
-          border-radius: 10px; border: 1.5px solid #f0f0f0; transition: all 0.15s;
-          cursor: pointer;
+          border-radius: 10px; border: 1.5px solid #f0f0f0; transition: all 0.15s; cursor: pointer;
         }
         .tp-check-item:hover:not(.disabled) { border-color: #d0d0d0; background: #fafafa; }
         .tp-check-item.disabled { cursor: default; opacity: 0.75; }
@@ -309,8 +261,7 @@ export default function TareasPendientesAsesor() {
         .tp-notas {
           width: 100%; border: 1.5px solid #e5e7eb; border-radius: 10px;
           padding: 10px 12px; font-size: 0.88rem; color: #333; resize: vertical;
-          min-height: 80px; font-family: 'DM Sans', sans-serif; outline: none;
-          transition: border-color 0.15s;
+          min-height: 80px; font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.15s;
         }
         .tp-notas:focus { border-color: #111; }
         .tp-notas:disabled { background: #f9fafb; color: #aaa; cursor: default; }
@@ -333,7 +284,6 @@ export default function TareasPendientesAsesor() {
       `}</style>
 
       <div className="tp-root">
-        {/* HEADER */}
         <div className="flex justify-between flex-wrap gap-3 mb-1">
           <div>
             <h1 className="tp-title">Tareas Pendientes</h1>
@@ -341,7 +291,6 @@ export default function TareasPendientesAsesor() {
           </div>
         </div>
 
-        {/* FILTROS */}
         <div className="tp-filters">
           {[
             { key: "todas", label: "Todas" },
@@ -358,7 +307,6 @@ export default function TareasPendientesAsesor() {
           ))}
         </div>
 
-        {/* STATS */}
         <div className="tp-stats">
           <div className="tp-stat">
             <div className="tp-stat-label">Total asignadas</div>
@@ -374,7 +322,6 @@ export default function TareasPendientesAsesor() {
           </div>
         </div>
 
-        {/* GRID DE CARDS */}
         {filtered.length === 0 ? (
           <div className="tp-empty">
             <div className="tp-empty-icon">🎉</div>
@@ -403,25 +350,13 @@ export default function TareasPendientesAsesor() {
                     </span>
                   </div>
                   <div className="tp-info" style={{ paddingLeft: 8 }}>
-                    <div className="tp-info-row">
-                      <span className="tp-info-icon">📍</span>
-                      <span>{tarea.ciudad}</span>
-                    </div>
-                    <div className="tp-info-row">
-                      <span className="tp-info-icon">👤</span>
-                      <span>{tarea.contacto}</span>
-                    </div>
-                    <div className="tp-info-row">
-                      <span className="tp-info-icon">📅</span>
-                      <span>{tarea.fechaVisita}</span>
-                    </div>
+                    <div className="tp-info-row"><span className="tp-info-icon">📍</span><span>{tarea.ciudad}</span></div>
+                    <div className="tp-info-row"><span className="tp-info-icon">👤</span><span>{tarea.contacto}</span></div>
+                    <div className="tp-info-row"><span className="tp-info-icon">📅</span><span>{tarea.fechaVisita}</span></div>
                   </div>
                   <div style={{ paddingLeft: 8 }}>
                     <div className="tp-progress-bar">
-                      <div
-                        className={`tp-progress-fill ${tarea.completada ? "done" : ""}`}
-                        style={{ width: `${pct}%` }}
-                      />
+                      <div className={`tp-progress-fill ${tarea.completada ? "done" : ""}`} style={{ width: `${pct}%` }} />
                     </div>
                     <div className="tp-progress-label">{done}/{total} tareas completadas</div>
                   </div>
@@ -432,7 +367,6 @@ export default function TareasPendientesAsesor() {
         )}
       </div>
 
-      {/* MODAL */}
       {selected && (
         <div className="tp-overlay" onClick={(e) => e.target === e.currentTarget && closeModal()}>
           <div className="tp-modal">
@@ -491,16 +425,14 @@ export default function TareasPendientesAsesor() {
             </div>
             <div className="tp-modal-footer">
               {selected.completada ? (
-                <div className="tp-completada-badge">
-                  ✓ Visita completada — solo lectura
-                </div>
+                <div className="tp-completada-badge">✓ Visita completada — solo lectura</div>
               ) : (
                 <button
                   className={`tp-save-btn ${saved ? "saved" : ""}`}
                   onClick={handleSave}
-                  disabled={!hasChanges || saving}
+                  disabled={!hasChanges}
                 >
-                  {saving ? "Guardando..." : saved ? "✓ Guardado" : "Guardar cambios"}
+                  {saved ? "✓ Guardado" : "Guardar cambios"}
                 </button>
               )}
             </div>
