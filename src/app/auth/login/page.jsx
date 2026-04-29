@@ -238,7 +238,13 @@ export default function LoginPage() {
           <div className="lg:w-1/2 xl:w-5/12 p-8 sm:p-14 bg-gray-100 flex flex-col justify-center">
 
             <div className="flex justify-center mb-10">
-              <img src="/assets/img/login/logo.png" alt="Equielect" className="w-[55%]" />
+            <Image
+              src="/assets/img/login/logo.png"
+              alt="Equielect"
+              width={120}
+              height={40}
+              className="h-9 w-auto"
+            />
             </div>
 
             <div className="my-6 border-b border-gray-300 text-center">

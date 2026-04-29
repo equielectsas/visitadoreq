@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useSearchParams } from "next/navigation";
 import { roleMenus } from "@/utils/roleMenus";
 
@@ -158,7 +159,13 @@ function SidebarContent({ rol, openMenu, toggleMenu, pathname, searchParams, onN
       {/* Logo */}
       <div className="px-5 pt-6 pb-5 border-b border-white/8">
         <div className="flex items-center justify-center">
-          <img src="/assets/img/login/logo.png" alt="Equielect" className="h-9 w-auto" />
+<Image
+  src="/assets/img/login/logo.png"
+  alt="Equielect"
+  width={200}
+  height={80}
+  className="w-[55%] h-auto"
+/>
         </div>
       </div>
 
@@ -257,8 +264,9 @@ export default function Sidebar({ mobileOpen = false, onClose = () => {} }) {
     }
   }, [pathname, rol]);
 
-  // Cerrar sidebar móvil al cambiar de ruta
-  useEffect(() => { onClose(); }, [pathname]);
+useEffect(() => {
+  onClose();
+}, [pathname, onClose]);
 
   // Bloquear scroll del body cuando el drawer está abierto en mobile
   useEffect(() => {
