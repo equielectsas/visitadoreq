@@ -142,7 +142,6 @@ function VisitDetailModal({ visit, onClose }) {
     realizada: "bg-blue-100 text-blue-700",
     pendiente: "bg-yellow-100 text-yellow-700",
     activa:    "bg-emerald-100 text-emerald-700",
-    perdida:   "bg-red-100 text-red-600",
   };
 
   const fields = [
@@ -454,7 +453,6 @@ export default function PerfilPage() {
             ) : (
               <div className="space-y-0 divide-y divide-gray-50">
                 {recentVisits.map((v) => {
-                  const isFinished = v.estado === "realizada" || v.estado === "perdida";
                   return (
                     <div key={v.id} className="flex items-center justify-between py-3 group">
                       <div className="flex items-center gap-3">

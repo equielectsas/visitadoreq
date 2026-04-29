@@ -1,5 +1,4 @@
 "use client";
-
 /**
  * perfil/page.jsx — Página de perfil UNIVERSAL
  * Funciona para: adminPlataforma, adminComercial, comercial
@@ -10,7 +9,6 @@
  *
  * La URL no cambia ni se redirige. Los datos se leen de localStorage["user"].
  */
-
 import { useState, useEffect, useRef } from "react";
 import LayoutDashboard from "@/components/LayoutDashboard";
 
@@ -64,7 +62,6 @@ const ROL_INFO = {
   adminComercial:  { label: "Admin Comercial",  badge: "bg-[#FFCD00] text-[#1C355E]", emoji: "📊", bannerFrom: "from-[#1a3060]", bannerTo: "to-[#FFCD00]/60" },
   comercial:       { label: "Asesor Comercial", badge: "bg-emerald-500 text-white",    emoji: "🤝", bannerFrom: "from-[#1C355E]", bannerTo: "to-emerald-700" },
 };
-
 const GRADIENTS = [
   ["from-yellow-400", "to-orange-400"],
   ["from-sky-400",    "to-blue-500"],
@@ -137,30 +134,25 @@ function SectionCard({ icon, title, children }) {
 // ── Visit detail modal (read-only, greyed out) ────────────────────────────────
 function VisitDetailModal({ visit, onClose }) {
   if (!visit) return null;
-
   const statusColors = {
     realizada: "bg-blue-100 text-blue-700",
     pendiente: "bg-yellow-100 text-yellow-700",
     activa:    "bg-emerald-100 text-emerald-700",
-    perdida:   "bg-red-100 text-red-600",
   };
-
   const fields = [
     { label: "Cliente",      value: visit.cliente },
     { label: "Fecha",        value: visit.fecha },
     { label: "Hora",         value: visit.hora },
-    { label: "Dirección",    value: visit.direccion || "—" },
-    { label: "Teléfono",     value: visit.telefono  || "—" },
-    { label: "Contacto",     value: visit.contacto  || "—" },
+    { label: "Dirección",    value: visit.direccion  || "—" },
+    { label: "Teléfono",     value: visit.telefono   || "—" },
+    { label: "Contacto",     value: visit.contacto   || "—" },
     { label: "Observación",  value: visit.observacion || "—" },
     { label: "Asesor",       value: visit.asesorNombre || "—" },
   ];
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-gray-100 modal-in">
-
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/60">
           <div>
@@ -176,7 +168,6 @@ function VisitDetailModal({ visit, onClose }) {
             </button>
           </div>
         </div>
-
         {/* Body — all fields greyed-out (read-only) */}
         <div className="p-6 grid grid-cols-2 gap-4">
           {fields.map(({ label, value }) => (
@@ -188,13 +179,49 @@ function VisitDetailModal({ visit, onClose }) {
             </div>
           ))}
         </div>
-
         <div className="px-6 pb-5">
           <p className="text-[11px] text-gray-300 text-center">
             👁 Modo solo lectura — Visita finalizada
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Avatar preview with live update ──────────────────────────────────────────
+function AvatarDisplay({ avatar, initials, gradient, onClick, fileRef, onFileChange }) {
+  return (
+    <div className="relative">
+      {avatar ? (
+        <img
+          src={avatar}
+          alt="Avatar"
+          className="w-24 h-24 rounded-2xl object-cover border-4 border-white shadow-xl ring-2 ring-gray-100"
+        />
+      ) : (
+        <div
+          className={`w-24 h-24 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center
+            border-4 border-white shadow-xl ring-2 ring-gray-100 text-3xl font-black text-white`}
+        >
+          {initials}
+        </div>
+      )}
+      <button
+        onClick={onClick}
+        title="Cambiar foto de perfil"
+        className="absolute -bottom-2 -right-2 w-9 h-9 rounded-xl bg-[#FFCD00] text-[#1C355E]
+          flex items-center justify-center shadow-lg hover:bg-yellow-400 active:scale-95 transition-all"
+      >
+        <CameraIcon />
+      </button>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={onFileChange}
+      />
     </div>
   );
 }
@@ -233,6 +260,8 @@ export default function PerfilPage() {
     setEditing(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
+    // ✅ Notifica al Topbar que el avatar cambió para que se refresque
+    window.dispatchEvent(new Event("avatar-updated"));
   };
 
   const handleCancel = () => {
@@ -245,7 +274,18 @@ export default function PerfilPage() {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => setAvatar(ev.target.result);
+    reader.onload = (ev) => {
+      const dataUrl = ev.target.result;
+      setAvatar(dataUrl);
+      // Preview instantáneo: guarda el avatar en localStorage para que el topbar lo muestre de inmediato
+      const stored = localStorage.getItem("user");
+      if (stored) {
+        const u = JSON.parse(stored);
+        const updated = { ...u, avatar: dataUrl };
+        localStorage.setItem("user", JSON.stringify(updated));
+        window.dispatchEvent(new Event("avatar-updated"));
+      }
+    };
     reader.readAsDataURL(file);
   };
 
@@ -258,33 +298,29 @@ export default function PerfilPage() {
   );
 
   const rolInfo  = ROL_INFO[user.rol] || { label: user.rol, badge: "bg-gray-100 text-gray-600", emoji: "👤", bannerFrom: "from-gray-700", bannerTo: "to-gray-900" };
-  const initials = (user.nombre || "U").split(" ").slice(0,2).map((n) => n[0]).join("").toUpperCase();
+  const initials = (user.nombre || "U").split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
   const gradient = getGradient(user.nombre || "");
 
-  // ── Build stats based on role ───────────────────────────────────────────────
-  const isAsesor  = user.rol === "comercial";
-  const isAdmin   = user.rol === "adminComercial";
-  const isProg    = user.rol === "adminPlataforma";
+  // ── Build stats based on role ─────────────────────────────────────────────
+  const isAsesor = user.rol === "comercial";
 
-  // For asesor: only their visits. For admin/prog: all visits.
   const myVisits = isAsesor
     ? allCitas.filter((c) => c.asesorId === user.id || c.asesorNombre === user.nombre)
     : allCitas;
 
-  const statsConfig = isAsesor || isAdmin ? [
+  const statsConfig = (isAsesor || user.rol === "adminComercial") ? [
     { label: "Total visitas",   value: myVisits.length },
     { label: "Realizadas",      value: myVisits.filter((c) => c.estado === "realizada").length },
     { label: "Pendientes",      value: myVisits.filter((c) => c.estado === "pendiente").length },
   ] : [
-    { label: "Total citas",     value: allCitas.length },
-    { label: "Realizadas",      value: allCitas.filter((c) => c.estado === "realizada").length },
-    { label: "Pendientes",      value: allCitas.filter((c) => c.estado === "pendiente").length },
-    { label: "Asesores activos",value: [...new Set(allCitas.map((c) => c.asesorId || c.asesorNombre))].length },
+    { label: "Total citas",       value: allCitas.length },
+    { label: "Realizadas",        value: allCitas.filter((c) => c.estado === "realizada").length },
+    { label: "Pendientes",        value: allCitas.filter((c) => c.estado === "pendiente").length },
+    { label: "Asesores activos",  value: [...new Set(allCitas.map((c) => c.asesorId || c.asesorNombre))].length },
   ];
 
   const colors = STAT_COLORS[user.rol] || STAT_COLORS.comercial;
 
-  // Recent activity: for asesor = their own. For admin/prog = all (last 5)
   const recentVisits = isAsesor
     ? myVisits.slice(-5).reverse()
     : allCitas.slice(-5).reverse();
@@ -321,34 +357,26 @@ export default function PerfilPage() {
 
       <div className="max-w-4xl mx-auto space-y-6 pb-10">
 
-        {/* ── HEADER CARD ─────────────────────────────────────────────── */}
+        {/* ── HEADER CARD ──────────────────────────────────────────────── */}
         <div className="fu bg-white rounded-3xl border border-gray-100 overflow-hidden">
           {/* Banner */}
           <div className={`h-28 bg-gradient-to-r ${rolInfo.bannerFrom} via-[#264a82] ${rolInfo.bannerTo} relative`}>
-            <div className="absolute inset-0 opacity-20"
-              style={{ background: "repeating-linear-gradient(45deg, transparent, transparent 20px, rgba(255,205,0,0.3) 20px, rgba(255,205,0,0.3) 22px)" }} />
+            <div
+              className="absolute inset-0 opacity-20"
+              style={{ background: "repeating-linear-gradient(45deg, transparent, transparent 20px, rgba(255,205,0,0.3) 20px, rgba(255,205,0,0.3) 22px)" }}
+            />
           </div>
 
           <div className="px-7 pb-6 -mt-14 flex items-end justify-between flex-wrap gap-4">
-            {/* Avatar */}
-            <div className="relative">
-              {avatar ? (
-                <img src={avatar} alt="Avatar" className="w-24 h-24 rounded-2xl object-cover border-4 border-white shadow-xl ring-2 ring-gray-100" />
-              ) : (
-                <div className={`w-24 h-24 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center
-                  border-4 border-white shadow-xl ring-2 ring-gray-100 text-3xl font-black text-white`}>
-                  {initials}
-                </div>
-              )}
-              <button
-                onClick={() => fileRef.current?.click()}
-                className="absolute -bottom-2 -right-2 w-9 h-9 rounded-xl bg-[#FFCD00] text-[#1C355E]
-                  flex items-center justify-center shadow-lg hover:bg-yellow-400 active:scale-95 transition-all"
-              >
-                <CameraIcon />
-              </button>
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
-            </div>
+            {/* Avatar con botón de cámara siempre visible */}
+            <AvatarDisplay
+              avatar={avatar}
+              initials={initials}
+              gradient={gradient}
+              onClick={() => fileRef.current?.click()}
+              fileRef={fileRef}
+              onFileChange={handlePhotoChange}
+            />
 
             {/* Info + buttons */}
             <div className="flex-1 min-w-0 pt-6">
@@ -366,7 +394,6 @@ export default function PerfilPage() {
                     </span>
                   </div>
                 </div>
-
                 {!editing ? (
                   <button
                     onClick={() => setEditing(true)}
@@ -377,10 +404,16 @@ export default function PerfilPage() {
                   </button>
                 ) : (
                   <div className="flex gap-2">
-                    <button onClick={handleCancel} className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-500 hover:bg-gray-50 transition-all">
+                    <button
+                      onClick={handleCancel}
+                      className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-500 hover:bg-gray-50 transition-all"
+                    >
                       Cancelar
                     </button>
-                    <button onClick={handleSave} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1C355E] text-white text-sm font-bold hover:bg-[#16294d] active:scale-[.97] transition-all">
+                    <button
+                      onClick={handleSave}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1C355E] text-white text-sm font-bold hover:bg-[#16294d] active:scale-[.97] transition-all"
+                    >
                       <SaveIcon /> Guardar
                     </button>
                   </div>
@@ -390,8 +423,11 @@ export default function PerfilPage() {
           </div>
         </div>
 
-        {/* ── STATS (todos los roles) ──────────────────────────────────── */}
-        <div className={`fu fu-1 grid gap-3`} style={{ gridTemplateColumns: `repeat(${statsConfig.length}, minmax(0, 1fr))` }}>
+        {/* ── STATS ────────────────────────────────────────────────────── */}
+        <div
+          className="fu fu-1 grid gap-3"
+          style={{ gridTemplateColumns: `repeat(${statsConfig.length}, minmax(0, 1fr))` }}
+        >
           {statsConfig.map(({ label, value }, i) => (
             <div key={label} className={`rounded-2xl border p-5 ${(colors[i] || colors[0]).color}`}>
               <p className={`text-3xl font-black ${(colors[i] || colors[0]).text}`}>{value}</p>
@@ -400,37 +436,71 @@ export default function PerfilPage() {
           ))}
         </div>
 
-        {/* ── DATOS PERSONALES ────────────────────────────────────────── */}
+        {/* ── DATOS PERSONALES ─────────────────────────────────────────── */}
         <div className="fu fu-2">
           <SectionCard icon={<UserIcon />} title="Información Personal">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <ProfileField label="Nombres" value={form.nombres || form.nombre?.split(" ").slice(0,2).join(" ")}
-                editing={editing} onChange={(v) => set("nombres", v)} />
-              <ProfileField label="Apellidos" value={form.apellidos || form.nombre?.split(" ").slice(2).join(" ")}
-                editing={editing} onChange={(v) => set("apellidos", v)} />
-              <ProfileField label="Nombre completo" value={form.nombre}
-                editing={editing} onChange={(v) => set("nombre", v)} />
+              <ProfileField
+                label="Nombres"
+                value={form.nombres || form.nombre?.split(" ").slice(0, 2).join(" ")}
+                editing={editing}
+                onChange={(v) => set("nombres", v)}
+              />
+              <ProfileField
+                label="Apellidos"
+                value={form.apellidos || form.nombre?.split(" ").slice(2).join(" ")}
+                editing={editing}
+                onChange={(v) => set("apellidos", v)}
+              />
+              <ProfileField
+                label="Nombre completo"
+                value={form.nombre}
+                editing={editing}
+                onChange={(v) => set("nombre", v)}
+              />
               <ProfileField label="Cédula" value={form.cedula} editing={false} readOnly />
-              <ProfileField label="Correo electrónico" value={form.email} type="email"
-                editing={editing} onChange={(v) => set("email", v)} />
-              <ProfileField label="Teléfono" value={form.telefono} type="tel"
-                editing={editing} onChange={(v) => set("telefono", v)} />
-              <ProfileField label="Dirección" value={form.direccion}
-                editing={editing} onChange={(v) => set("direccion", v)} />
-              <ProfileField label="Ciudad" value={form.ciudad}
-                editing={editing} onChange={(v) => set("ciudad", v)} />
+              <ProfileField
+                label="Correo electrónico"
+                value={form.email}
+                type="email"
+                editing={editing}
+                onChange={(v) => set("email", v)}
+              />
+              <ProfileField
+                label="Teléfono"
+                value={form.telefono}
+                type="tel"
+                editing={editing}
+                onChange={(v) => set("telefono", v)}
+              />
+              <ProfileField
+                label="Dirección"
+                value={form.direccion}
+                editing={editing}
+                onChange={(v) => set("direccion", v)}
+              />
+              <ProfileField
+                label="Ciudad"
+                value={form.ciudad}
+                editing={editing}
+                onChange={(v) => set("ciudad", v)}
+              />
             </div>
           </SectionCard>
         </div>
 
-        {/* ── DATOS DE CUENTA ─────────────────────────────────────────── */}
+        {/* ── DATOS DE CUENTA ──────────────────────────────────────────── */}
         <div className="fu fu-3">
           <SectionCard icon={<ShieldIcon />} title="Datos de Cuenta">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <ProfileField label="Rol" value={rolInfo.label} editing={false} readOnly />
               <ProfileField label="ID de usuario" value={String(user.id || "—")} editing={false} readOnly />
-              <ProfileField label="Usuario / Login" value={form.usuario || form.email}
-                editing={editing} onChange={(v) => set("usuario", v)} />
+              <ProfileField
+                label="Usuario / Login"
+                value={form.usuario || form.email}
+                editing={editing}
+                onChange={(v) => set("usuario", v)}
+              />
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-400">Contraseña</label>
                 <div className="px-4 py-3 rounded-xl bg-gray-50 border border-dashed border-gray-200 text-sm text-gray-300 font-medium">
@@ -446,19 +516,26 @@ export default function PerfilPage() {
           </SectionCard>
         </div>
 
-        {/* ── ACTIVIDAD RECIENTE ──────────────────────────────────────── */}
+        {/* ── ACTIVIDAD RECIENTE ───────────────────────────────────────── */}
         <div className="fu fu-4">
-          <SectionCard icon={<ActivityIcon />} title={isAsesor ? "Mi Actividad Reciente" : "Actividad Reciente (Global)"}>
+          <SectionCard
+            icon={<ActivityIcon />}
+            title={isAsesor ? "Mi Actividad Reciente" : "Actividad Reciente (Global)"}
+          >
             {recentVisits.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-4">Sin actividad registrada aún</p>
             ) : (
               <div className="space-y-0 divide-y divide-gray-50">
                 {recentVisits.map((v) => {
-                  const isFinished = v.estado === "realizada" || v.estado === "perdida";
+                  // ✅ FIX: isFinished evaluado correctamente por cada visita
+                  const isFinished = v.estado === "realizada";
+
                   return (
                     <div key={v.id} className="flex items-center justify-between py-3 group">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center text-base flex-shrink-0">🏢</div>
+                        <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center text-base flex-shrink-0">
+                          🏢
+                        </div>
                         <div>
                           <p className="text-sm font-bold text-gray-700">{v.cliente}</p>
                           <p className="text-xs text-gray-400">
@@ -470,14 +547,17 @@ export default function PerfilPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-full
-                          ${v.estado === "realizada" ? "bg-blue-100 text-blue-700"
-                            : v.estado === "pendiente"  ? "bg-yellow-100 text-yellow-700"
-                            : v.estado === "activa"     ? "bg-emerald-100 text-emerald-700"
-                            : "bg-red-100 text-red-600"}`}>
+                        <span
+                          className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-full
+                            ${v.estado === "realizada" ? "bg-blue-100 text-blue-700"
+                              : v.estado === "pendiente" ? "bg-yellow-100 text-yellow-700"
+                              : v.estado === "activa"    ? "bg-emerald-100 text-emerald-700"
+                              : "bg-red-100 text-red-600"}`}
+                        >
                           {v.estado}
                         </span>
-                        {/* Eye button - only for finished visits */}
+
+                        {/* ✅ FIX: isFinished ahora es una const local dentro del .map */}
                         {isFinished && (
                           <button
                             onClick={() => setSelectedVisit(v)}

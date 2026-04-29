@@ -40,6 +40,12 @@ const CheckAllIcon = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7M3 13l4 4" />
   </svg>
 );
+// Hamburger icon for mobile menu toggle
+const MenuIcon = () => (
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+  </svg>
+);
 
 // ── Role config ───────────────────────────────────────────────────────────────
 const ROL_DISPLAY = {
@@ -54,20 +60,18 @@ const ROLE_STYLES = {
   default:         { bg: "bg-gray-100",      text: "text-gray-600",    label: "Usuario"       },
 };
 
-// ── Notification types ────────────────────────────────────────────────────────
+// ── Notifications ─────────────────────────────────────────────────────────────
 const NOTIF_ICONS = {
   cita:    { emoji: "📅", bg: "bg-blue-50",    text: "text-blue-600"   },
   alerta:  { emoji: "⚠️", bg: "bg-yellow-50",  text: "text-yellow-600" },
   sistema: { emoji: "⚙️", bg: "bg-gray-50",    text: "text-gray-600"   },
   exito:   { emoji: "✅", bg: "bg-emerald-50", text: "text-emerald-600" },
 };
-
-// ── Sample notifications (in a real app, these come from an API/localStorage) ──
 const INITIAL_NOTIFS = [
-  { id: 1, type: "cita",    title: "Cita pendiente",       body: "Tienes una cita con Empresa ABC mañana a las 10:00 AM",  time: "hace 5 min",  read: false },
-  { id: 2, type: "alerta",  title: "Visita sin finalizar",  body: "La visita a Ferretería López lleva más de 2 horas activa", time: "hace 30 min", read: false },
-  { id: 3, type: "exito",   title: "Cita realizada",        body: "La visita a Constructora Norte fue marcada como realizada", time: "hace 1h",    read: false },
-  { id: 4, type: "sistema", title: "Actualización del sistema", body: "La plataforma se actualizó a v2.4.1 con nuevas funciones", time: "hace 3h",  read: true  },
+  { id: 1, type: "cita",    title: "Cita pendiente",           body: "Tienes una cita con Empresa ABC mañana a las 10:00 AM",    time: "hace 5 min",  read: false },
+  { id: 2, type: "alerta",  title: "Visita sin finalizar",      body: "La visita a Ferretería López lleva más de 2 horas activa", time: "hace 30 min", read: false },
+  { id: 3, type: "exito",   title: "Cita realizada",            body: "La visita a Constructora Norte fue marcada como realizada",time: "hace 1h",     read: false },
+  { id: 4, type: "sistema", title: "Actualización del sistema", body: "La plataforma se actualizó a v2.4.1 con nuevas funciones", time: "hace 3h",     read: true  },
 ];
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
@@ -79,8 +83,8 @@ const GRADIENTS = [
 function getGradient(name = "") { return GRADIENTS[(name.charCodeAt(0) || 0) % GRADIENTS.length]; }
 
 function Avatar({ user, size = "md" }) {
-  const sz = size === "lg" ? "w-11 h-11 text-base" : "w-9 h-9 text-sm";
-  const initials = (user?.nombre || "U").split(" ").slice(0,2).map((n) => n[0]).join("").toUpperCase();
+  const sz       = size === "lg" ? "w-11 h-11 text-base" : "w-9 h-9 text-sm";
+  const initials = (user?.nombre || "U").split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
   const gradient = getGradient(user?.nombre || "");
   if (user?.avatar) {
     return <img src={user.avatar} alt={user.nombre} className={`${sz} rounded-full object-cover shadow-md ring-2 ring-white`} />;
@@ -95,42 +99,35 @@ function Avatar({ user, size = "md" }) {
 // ── Notifications Modal ───────────────────────────────────────────────────────
 function NotificationsModal({ show, onClose, notifs, onMarkRead, onMarkAllRead, unreadCount }) {
   const ref = useRef(null);
-
   useEffect(() => {
-    const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) onClose();
-    };
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
     if (show) document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [show, onClose]);
-
   if (!show) return null;
 
   return (
-    <div className="absolute right-0 mt-2 w-96 z-50" ref={ref}>
+    // En mobile: full width alineado a la derecha con margen
+    // En sm+: width fijo 96 (w-96)
+    <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] sm:w-96 max-w-sm z-50" ref={ref}>
       <div className="notif-modal bg-white rounded-2xl shadow-[0_8px_40px_-8px_rgba(0,0,0,0.20)] border border-gray-100 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-4 sm:px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-[#1C355E]/8 flex items-center justify-center">
               <BellIcon />
             </div>
             <div>
               <p className="text-sm font-bold text-gray-800 leading-tight">Notificaciones</p>
-              {unreadCount > 0 && (
-                <p className="text-[11px] text-gray-400">{unreadCount} sin leer</p>
-              )}
+              {unreadCount > 0 && <p className="text-[11px] text-gray-400">{unreadCount} sin leer</p>}
             </div>
           </div>
           <div className="flex items-center gap-1">
             {unreadCount > 0 && (
-              <button
-                onClick={onMarkAllRead}
-                className="flex items-center gap-1.5 text-xs font-semibold text-[#1C355E] hover:text-[#FFCD00] px-2.5 py-1.5 rounded-lg hover:bg-[#1C355E]/5 transition-all"
-                title="Marcar todas como leídas"
-              >
+              <button onClick={onMarkAllRead}
+                className="flex items-center gap-1.5 text-xs font-semibold text-[#1C355E] hover:text-[#FFCD00] px-2 sm:px-2.5 py-1.5 rounded-lg hover:bg-[#1C355E]/5 transition-all">
                 <CheckAllIcon />
-                Todas leídas
+                <span className="hidden sm:inline">Todas leídas</span>
               </button>
             )}
             <button onClick={onClose} className="w-7 h-7 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors">
@@ -138,9 +135,8 @@ function NotificationsModal({ show, onClose, notifs, onMarkRead, onMarkAllRead, 
             </button>
           </div>
         </div>
-
         {/* List */}
-        <div className="max-h-[400px] overflow-y-auto divide-y divide-gray-50">
+        <div className="max-h-[60vh] sm:max-h-[400px] overflow-y-auto divide-y divide-gray-50">
           {notifs.length === 0 ? (
             <div className="px-5 py-12 text-center">
               <p className="text-4xl mb-3">🔕</p>
@@ -151,22 +147,15 @@ function NotificationsModal({ show, onClose, notifs, onMarkRead, onMarkAllRead, 
             notifs.map((n) => {
               const nInfo = NOTIF_ICONS[n.type] || NOTIF_ICONS.sistema;
               return (
-                <button
-                  key={n.id}
-                  onClick={() => onMarkRead(n.id)}
-                  className={`w-full flex items-start gap-3 px-5 py-4 text-left transition-all duration-150
-                    ${n.read ? "opacity-60 hover:opacity-80 hover:bg-gray-50" : "hover:bg-blue-50/40 bg-blue-50/20"}`}
-                >
-                  {/* Icon */}
+                <button key={n.id} onClick={() => onMarkRead(n.id)}
+                  className={`w-full flex items-start gap-3 px-4 sm:px-5 py-4 text-left transition-all duration-150
+                    ${n.read ? "opacity-60 hover:opacity-80 hover:bg-gray-50" : "hover:bg-blue-50/40 bg-blue-50/20"}`}>
                   <div className={`w-9 h-9 rounded-xl ${nInfo.bg} flex items-center justify-center text-base flex-shrink-0 mt-0.5`}>
                     {nInfo.emoji}
                   </div>
-                  {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
-                      <p className={`text-sm font-bold leading-tight ${n.read ? "text-gray-500" : "text-gray-800"}`}>
-                        {n.title}
-                      </p>
+                      <p className={`text-sm font-bold leading-tight ${n.read ? "text-gray-500" : "text-gray-800"}`}>{n.title}</p>
                       {!n.read && <span className="w-2 h-2 rounded-full bg-[#FFCD00] flex-shrink-0 mt-1" />}
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5 leading-relaxed line-clamp-2">{n.body}</p>
@@ -177,12 +166,10 @@ function NotificationsModal({ show, onClose, notifs, onMarkRead, onMarkAllRead, 
             })
           )}
         </div>
-
-        {/* Footer */}
         {notifs.length > 0 && (
           <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/50">
             <p className="text-xs text-gray-400 text-center font-medium">
-              {notifs.filter(n => n.read).length} de {notifs.length} leídas
+              {notifs.filter((n) => n.read).length} de {notifs.length} leídas
             </p>
           </div>
         )}
@@ -191,13 +178,37 @@ function NotificationsModal({ show, onClose, notifs, onMarkRead, onMarkAllRead, 
   );
 }
 
-// ── Configuración Modal ───────────────────────────────────────────────────────
-function ConfigModal({ show, onClose, user }) {
+// ── Config Modal ──────────────────────────────────────────────────────────────
+function Toggle({ label, storageKey, defaultVal }) {
+  const [on, setOn] = useState(() => {
+    if (typeof window === "undefined") return defaultVal;
+    const stored = localStorage.getItem(`cfg_${storageKey}`);
+    return stored !== null ? stored === "true" : defaultVal;
+  });
+  const toggle = () => {
+    const next = !on;
+    setOn(next);
+    localStorage.setItem(`cfg_${storageKey}`, String(next));
+  };
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-sm font-medium text-gray-600">{label}</span>
+      <button onClick={toggle}
+        className={`relative rounded-full transition-all duration-200 ${on ? "bg-[#1C355E]" : "bg-gray-200"}`}
+        style={{ height: "22px", width: "40px" }}>
+        <span className={`absolute top-0.5 left-0.5 bg-white rounded-full shadow transition-transform duration-200 ${on ? "translate-x-[18px]" : "translate-x-0"}`}
+          style={{ width: "18px", height: "18px" }} />
+      </button>
+    </div>
+  );
+}
+
+function ConfigModal({ show, onClose }) {
   if (!show) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-end p-4 pt-16">
+    <div className="fixed inset-0 z-50 flex items-start justify-center sm:justify-end p-4 pt-16 sm:pt-16">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-80 border border-gray-100">
+      <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-sm sm:w-80 border border-gray-100">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <SettingsIcon />
@@ -212,9 +223,9 @@ function ConfigModal({ show, onClose, user }) {
             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">Notificaciones</p>
             <div className="space-y-3">
               {[
-                { label: "Notificaciones push",   key: "notif_push",         defaultVal: true  },
-                { label: "Alertas de citas",       key: "notif_citas",        defaultVal: true  },
-                { label: "Recordatorios",          key: "notif_recordatorios",defaultVal: false },
+                { label: "Notificaciones push",  key: "notif_push",          defaultVal: true  },
+                { label: "Alertas de citas",      key: "notif_citas",         defaultVal: true  },
+                { label: "Recordatorios",         key: "notif_recordatorios", defaultVal: false },
               ].map(({ label, key, defaultVal }) => (
                 <Toggle key={key} label={label} storageKey={key} defaultVal={defaultVal} />
               ))}
@@ -236,38 +247,36 @@ function ConfigModal({ show, onClose, user }) {
   );
 }
 
-function Toggle({ label, storageKey, defaultVal }) {
-  const [on, setOn] = useState(() => {
-    if (typeof window === "undefined") return defaultVal;
-    const stored = localStorage.getItem(`cfg_${storageKey}`);
-    return stored !== null ? stored === "true" : defaultVal;
-  });
-  const toggle = () => {
-    const next = !on;
-    setOn(next);
-    localStorage.setItem(`cfg_${storageKey}`, String(next));
+function readUserFromStorage() {
+  try {
+    const stored = localStorage.getItem("user");
+    return stored ? JSON.parse(stored) : null;
+  } catch { return null; }
+}
+
+// ── DropItem ──────────────────────────────────────────────────────────────────
+function DropItem({ icon, label, sublabel, onClick, color = "gray" }) {
+  const colorMap = {
+    gray: "text-gray-600 hover:text-gray-900 hover:bg-gray-100",
+    red:  "text-red-500 hover:text-red-600 hover:bg-red-50",
   };
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-sm font-medium text-gray-600">{label}</span>
-      <button
-        onClick={toggle}
-        className={`relative rounded-full transition-all duration-200 ${on ? "bg-[#1C355E]" : "bg-gray-200"}`}
-        style={{ height: "22px", width: "40px" }}
-      >
-        <span
-          className={`absolute top-0.5 left-0.5 bg-white rounded-full shadow transition-transform duration-200 ${on ? "translate-x-[18px]" : "translate-x-0"}`}
-          style={{ width: "18px", height: "18px" }}
-        />
-      </button>
-    </div>
+    <button onClick={onClick}
+      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 active:scale-[.98] ${colorMap[color]}`}>
+      <span className="opacity-70 flex-shrink-0">{icon}</span>
+      <div className="text-left min-w-0">
+        <p className="font-semibold leading-tight">{label}</p>
+        {sublabel && <p className="text-[10px] text-gray-400 leading-tight mt-0.5">{sublabel}</p>}
+      </div>
+    </button>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TOPBAR
+// Acepta `onMenuToggle` para abrir el sidebar drawer en mobile
 // ─────────────────────────────────────────────────────────────────────────────
-export default function Topbar() {
+export default function Topbar({ onMenuToggle }) {
   const [open, setOpen]             = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
@@ -276,30 +285,28 @@ export default function Topbar() {
   const [notifs, setNotifs]         = useState(INITIAL_NOTIFS);
   const router   = useRouter();
   const dropRef  = useRef(null);
-  const notifRef = useRef(null);
 
   const unreadCount = notifs.filter((n) => !n.read).length;
 
   useEffect(() => {
-    const stored = localStorage.getItem("user");
-    if (stored) setUser(JSON.parse(stored));
+    setUser(readUserFromStorage());
     setTimeout(() => setVisible(true), 50);
   }, []);
 
   useEffect(() => {
-    const onFocus = () => {
-      const stored = localStorage.getItem("user");
-      if (stored) setUser(JSON.parse(stored));
-    };
+    const onFocus = () => setUser(readUserFromStorage());
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, []);
 
-  // Close user dropdown on outside click
   useEffect(() => {
-    const handler = (e) => {
-      if (dropRef.current && !dropRef.current.contains(e.target)) setOpen(false);
-    };
+    const onAvatarUpdated = () => setUser(readUserFromStorage());
+    window.addEventListener("avatar-updated", onAvatarUpdated);
+    return () => window.removeEventListener("avatar-updated", onAvatarUpdated);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e) => { if (dropRef.current && !dropRef.current.contains(e.target)) setOpen(false); };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
@@ -310,21 +317,15 @@ export default function Topbar() {
     router.push("/auth/login");
   };
 
-  const handleMarkRead = (id) => {
-    setNotifs((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
-  };
-
-  const handleMarkAllRead = () => {
-    setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
+  const handleMarkRead    = (id) => setNotifs((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
+  const handleMarkAllRead = ()   => setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
 
   const roleBadge = ROLE_STYLES[user?.rol] || ROLE_STYLES.default;
   const rolLabel  = ROL_DISPLAY[user?.rol] || user?.rol?.toUpperCase() || "USUARIO";
   const fullName  = user?.nombre || "Cargando...";
 
-  // Profile path based on role
   const perfilPath =
-    user?.rol === "comercial"       ? "/dashboard/asesor/perfil"
+    user?.rol === "comercial"        ? "/dashboard/asesor/perfil"
     : user?.rol === "adminComercial" ? "/dashboard/admin/perfil"
     : "/dashboard/programador/perfil";
 
@@ -337,40 +338,52 @@ export default function Topbar() {
         .dropdown-in { animation: slideDown .2s cubic-bezier(.34,1.56,.64,1) forwards; }
         .notif-modal { animation: slideDown .2s cubic-bezier(.34,1.56,.64,1) forwards; }
         .notif-pulse { animation: pulse 2s cubic-bezier(.4,0,.6,1) infinite; }
+        button { -webkit-tap-highlight-color: transparent; }
       `}</style>
 
       <header className={`sticky top-0 z-40 w-full bg-white/80 backdrop-blur-md border-b border-gray-100
         shadow-[0_2px_20px_-4px_rgba(0,0,0,0.08)] ${visible ? "topbar-in" : "opacity-0"}`}>
-        <div className="px-5 md:px-8 h-16 flex items-center justify-between gap-4">
+        <div className="px-3 sm:px-5 md:px-8 h-14 sm:h-16 flex items-center justify-between gap-2 sm:gap-4">
 
-          {/* LEFT */}
-          <div className="flex items-center gap-3 min-w-0">
+          {/* LEFT: hamburger (mobile/tablet) + título */}
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* Hamburger — solo visible en lg- */}
+            <button
+              onClick={onMenuToggle}
+              className="lg:hidden w-9 h-9 rounded-xl flex items-center justify-center text-gray-600
+                hover:bg-gray-100 active:scale-95 transition-all duration-150 flex-shrink-0"
+              aria-label="Abrir menú"
+            >
+              <MenuIcon />
+            </button>
+
             <div className="hidden sm:block w-1 h-7 rounded-full bg-gradient-to-b from-[#F5C800] to-[#e0a800] flex-shrink-0" />
+
             <div className="min-w-0">
-              <p className="text-[11px] font-medium text-gray-400 uppercase tracking-widest leading-none mb-0.5">Bienvenido de vuelta</p>
-              <p className="text-[15px] font-bold text-gray-800 truncate leading-tight">
+              <p className="text-[10px] sm:text-[11px] font-medium text-gray-400 uppercase tracking-widest leading-none mb-0.5">
+                Bienvenido de vuelta
+              </p>
+              <p className="text-sm sm:text-[15px] font-bold text-gray-800 truncate leading-tight">
                 {rolLabel}
-                <span className="ml-2 inline-flex items-center">
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${roleBadge.bg} ${roleBadge.text}`}>
-                    {roleBadge.label}
-                  </span>
-                </span>
               </p>
             </div>
           </div>
 
-          {/* RIGHT */}
-          <div className="flex items-center gap-2">
+          {/* RIGHT: bell + avatar */}
+          <div className="flex items-center gap-1 sm:gap-2">
 
-            {/* Bell with notifications dropdown */}
-            <div className="relative" ref={notifRef}>
+            {/* Bell */}
+            <div className="relative">
               <button
                 onClick={() => { setShowNotifs((v) => !v); setOpen(false); }}
-                className="relative w-9 h-9 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100 active:scale-95 transition-all duration-150"
+                className="relative w-9 h-9 rounded-xl flex items-center justify-center text-gray-500
+                  hover:text-gray-800 hover:bg-gray-100 active:scale-95 transition-all duration-150"
+                aria-label="Notificaciones"
               >
                 <BellIcon />
                 {unreadCount > 0 && (
-                  <span className="absolute top-1.5 right-1.5 min-w-[14px] h-3.5 px-0.5 rounded-full bg-[#F5C800] ring-2 ring-white flex items-center justify-center notif-pulse">
+                  <span className="absolute top-1.5 right-1.5 min-w-[14px] h-3.5 px-0.5 rounded-full
+                    bg-[#F5C800] ring-2 ring-white flex items-center justify-center notif-pulse">
                     <span className="text-[8px] font-black text-[#1C355E] leading-none">{unreadCount}</span>
                   </span>
                 )}
@@ -385,23 +398,29 @@ export default function Topbar() {
               />
             </div>
 
-            <div className="w-px h-6 bg-gray-200 mx-1" />
+            <div className="w-px h-6 bg-gray-200 mx-0.5 sm:mx-1" />
 
             {/* Avatar dropdown */}
             <div className="relative" ref={dropRef}>
               <button
                 onClick={() => { setOpen(!open); setShowNotifs(false); }}
-                className="flex items-center gap-2.5 pl-1 pr-3 py-1 rounded-xl hover:bg-gray-100 active:scale-95 transition-all duration-150 group"
+                className="flex items-center gap-1.5 sm:gap-2.5 pl-1 pr-2 sm:pr-3 py-1 rounded-xl
+                  hover:bg-gray-100 active:scale-95 transition-all duration-150 group"
+                aria-label="Menú de usuario"
               >
                 <Avatar user={user} />
-                <span className="hidden md:block text-sm font-semibold text-gray-700 max-w-[120px] truncate">{fullName}</span>
-                <span className="text-gray-400 group-hover:text-gray-600 transition-colors">
+                {/* Nombre solo en md+ */}
+                <span className="hidden md:block text-sm font-semibold text-gray-700 max-w-[120px] truncate">
+                  {fullName}
+                </span>
+                <span className="text-gray-400 group-hover:text-gray-600 transition-colors hidden sm:block">
                   <ChevronIcon open={open} />
                 </span>
               </button>
 
               {open && (
-                <div className="dropdown-in absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-[0_8px_40px_-8px_rgba(0,0,0,0.18)] border border-gray-100 overflow-hidden z-50">
+                <div className="dropdown-in absolute right-0 mt-2 w-64 bg-white rounded-2xl
+                  shadow-[0_8px_40px_-8px_rgba(0,0,0,0.18)] border border-gray-100 overflow-hidden z-50">
                   {/* User card */}
                   <div className="px-4 pt-4 pb-3 bg-gradient-to-br from-gray-50 to-white border-b border-gray-100">
                     <div className="flex items-center gap-3">
@@ -415,31 +434,14 @@ export default function Topbar() {
                       </div>
                     </div>
                   </div>
-
                   <div className="p-1.5 space-y-0.5">
-                    <DropItem
-                      icon={<UserIcon />}
-                      label="Mi perfil"
-                      sublabel="Ver y editar información"
-                      onClick={() => { setOpen(false); router.push(perfilPath); }}
-                      color="gray"
-                    />
-                    <DropItem
-                      icon={<SettingsIcon />}
-                      label="Configuración"
-                      sublabel="Notificaciones y preferencias"
-                      onClick={() => { setOpen(false); setShowConfig(true); }}
-                      color="gray"
-                    />
+                    <DropItem icon={<UserIcon />} label="Mi perfil" sublabel="Ver y editar información"
+                      onClick={() => { setOpen(false); router.push(perfilPath); }} color="gray" />
+                    <DropItem icon={<SettingsIcon />} label="Configuración" sublabel="Notificaciones y preferencias"
+                      onClick={() => { setOpen(false); setShowConfig(true); }} color="gray" />
                   </div>
-
                   <div className="p-1.5 border-t border-gray-100">
-                    <DropItem
-                      icon={<LogoutIcon />}
-                      label="Cerrar sesión"
-                      onClick={handleLogout}
-                      color="red"
-                    />
+                    <DropItem icon={<LogoutIcon />} label="Cerrar sesión" onClick={handleLogout} color="red" />
                   </div>
                 </div>
               )}
@@ -448,26 +450,7 @@ export default function Topbar() {
         </div>
       </header>
 
-      <ConfigModal show={showConfig} onClose={() => setShowConfig(false)} user={user} />
+      <ConfigModal show={showConfig} onClose={() => setShowConfig(false)} />
     </>
-  );
-}
-
-function DropItem({ icon, label, sublabel, onClick, color = "gray" }) {
-  const colorMap = {
-    gray: "text-gray-600 hover:text-gray-900 hover:bg-gray-100",
-    red:  "text-red-500 hover:text-red-600 hover:bg-red-50",
-  };
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 active:scale-[.98] ${colorMap[color]}`}
-    >
-      <span className="opacity-70 flex-shrink-0">{icon}</span>
-      <div className="text-left min-w-0">
-        <p className="font-semibold leading-tight">{label}</p>
-        {sublabel && <p className="text-[10px] text-gray-400 leading-tight mt-0.5">{sublabel}</p>}
-      </div>
-    </button>
   );
 }
