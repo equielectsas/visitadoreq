@@ -20,9 +20,9 @@ export default function VisitasPage() {
 
   const [selected, setSelected] = useState(null);
 
-  useEffect(() => {
-    loadVisitas();
-  }, []);
+useEffect(() => {
+  loadVisita();
+}, [loadVisita]);
 
   const loadVisitas = async () => {
     const data = await getVisitas();
