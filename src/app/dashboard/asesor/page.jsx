@@ -568,7 +568,9 @@ function EmpresaSearch({ onSelect, clientes }) {
   const [query, setQuery]     = useState("");
   const [results, setResults] = useState([]);
   const [open, setOpen]       = useState(false);
+  const [loading, setLoading] = useState(false);
   const ref = useRef(null);
+  const tRef = useRef(null);
 
   useEffect(() => {
     const handler = (e) => {
@@ -578,15 +580,58 @@ function EmpresaSearch({ onSelect, clientes }) {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  const getToken = () => {
+    try {
+      const u = JSON.parse(localStorage.getItem("user") || "null");
+      return u?.token || localStorage.getItem("token");
+    } catch {
+      return localStorage.getItem("token");
+    }
+  };
+
+  const mapClienteToEmpresa = (c) => ({
+    _id: c._id,
+    nombre: c.razonSocial || c.nombrePunto || `Cliente ${c.identificacion || ""}`.trim(),
+    nit: c.identificacion,
+    ciudad: c.ciudad,
+    direccion: c.direccion,
+  });
+
   const handleSearch = (val) => {
     setQuery(val);
     if (!val.trim()) { setResults([]); setOpen(false); return; }
-    const q = val.toLowerCase();
-    const found = clientes.filter(
-      c => c.nombre?.toLowerCase().includes(q) || c.nit?.toLowerCase().includes(q)
-    ).slice(0, 8);
-    setResults(found);
-    setOpen(found.length > 0);
+
+    if (tRef.current) clearTimeout(tRef.current);
+    tRef.current = setTimeout(async () => {
+      const q = val.trim();
+      setLoading(true);
+      try {
+        const token = getToken();
+        const params = new URLSearchParams({ page: "1", limit: "8", search: q });
+        const res = await fetch(`/api/clientes?${params.toString()}`, {
+          headers: { Authorization: token },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const list = Array.isArray(json?.clientes) ? json.clientes : [];
+          const mapped = list.map(mapClienteToEmpresa);
+          setResults(mapped);
+          setOpen(true);
+          return;
+        }
+      } catch {}
+
+      // Fallback a clientes locales (si existieran)
+      const low = q.toLowerCase();
+      const found = (clientes || [])
+        .filter((c) =>
+          c?.nombre?.toLowerCase().includes(low) || c?.nit?.toLowerCase().includes(low)
+        )
+        .slice(0, 8);
+      setResults(found);
+      setOpen(true);
+      setLoading(false);
+    }, 250);
   };
 
   const handleSelect = (empresa) => {
@@ -612,6 +657,11 @@ function EmpresaSearch({ onSelect, clientes }) {
               focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all"
           />
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><SearchIcon /></span>
+          {loading && (
+            <span className="absolute right-3 top-1/2 -translate-y-1/2">
+              <span className="w-4 h-4 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin inline-block" />
+            </span>
+          )}
         </div>
       </div>
       {open && results.length > 0 && (
@@ -1249,8 +1299,6 @@ export default function AsesorCitasPage() {
     if (stored) setUser(JSON.parse(stored));
     const storedCitas = localStorage.getItem("equielect_citas");
     if (storedCitas) setCitas(JSON.parse(storedCitas));
-    const storedClientes = localStorage.getItem("equielect_clientes");
-    if (storedClientes) setClientes(JSON.parse(storedClientes));
   }, []);
 
   const saveCitas = (updated) => { setCitas(updated); localStorage.setItem("equielect_citas", JSON.stringify(updated)); };
