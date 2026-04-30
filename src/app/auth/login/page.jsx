@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { roleRoutes } from "@/utils/roleRoutes";
+import Image from "next/image";
 
 
 // ── Inline SVG Icons ──────────────────────────────────────────────────────────
