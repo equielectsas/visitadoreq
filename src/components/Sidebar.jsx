@@ -109,9 +109,16 @@ function SubItem({ href, label, dotColor, pathname, onNavigate }) {
     typeof window !== "undefined"
       ? new URLSearchParams(window.location.search).get("estado")
       : null;
+
   const basePath = href.split("?")[0];
-  const hrefEstado = href.includes("estado=") ? href.split("estado=")[1] : null;
-  const isActive = pathname === basePath && currentEstado === hrefEstado;
+
+  const hrefEstado = href.includes("estado=")
+    ? href.split("estado=")[1]
+    : null;
+
+  const isActive =
+    pathname === basePath && currentEstado === hrefEstado;
+
   return (
     <Link href={href} onClick={onNavigate}>
       <span className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer
@@ -148,7 +155,7 @@ function NavGroup({ icon, label, isOpen, onToggle, children, pathname, basePath 
 }
 
 // ── Sidebar content (shared between desktop & mobile drawer) ──────────────────
-function SidebarContent({ rol, openMenu, toggleMenu, pathname, searchParams, onNavigate }) {
+function SidebarContent({ rol, openMenu, toggleMenu, pathname, onNavigate }) {
   const menu = roleMenus[rol] || [];
   const sectionMap = {};
   for (const item of menu) {
@@ -284,7 +291,7 @@ useEffect(() => {
 
   const toggleMenu = (name) => setOpenMenu(openMenu === name ? null : name);
 
-  const sharedProps = { rol, openMenu, toggleMenu, pathname, searchParams, onNavigate: onClose };
+  const sharedProps = { rol, openMenu, toggleMenu, pathname, onNavigate: onClose };
 
   return (
     <>
