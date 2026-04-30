@@ -55,7 +55,7 @@ export const roleMenus = {
       section: "Análisis",
       name: "Calendario",
       icon: "calendar",
-      path: "/dashboard/programador/calendar",
+      path: "/dashboard/programador/calendario",
     },
   ],
  
