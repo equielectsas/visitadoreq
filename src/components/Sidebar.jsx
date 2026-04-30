@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { roleMenus } from "@/utils/roleMenus";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -104,8 +104,11 @@ function NavItem({ href, icon, label, pathname, onNavigate }) {
     </Link>
   );
 }
-function SubItem({ href, label, dotColor, pathname, searchParams, onNavigate }) {
-  const currentEstado = searchParams.get("estado");
+function SubItem({ href, label, dotColor, pathname, onNavigate }) {
+  const currentEstado =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("estado")
+      : null;
   const basePath = href.split("?")[0];
   const hrefEstado = href.includes("estado=") ? href.split("estado=")[1] : null;
   const isActive = pathname === basePath && currentEstado === hrefEstado;
@@ -198,9 +201,14 @@ function SidebarContent({ rol, openMenu, toggleMenu, pathname, searchParams, onN
                     isOpen={openMenu === item.name} onToggle={() => toggleMenu(item.name)}
                     pathname={pathname} basePath={basePath}>
                     {item.children.map((sub) => (
-                      <SubItem key={sub.path} href={sub.path} label={sub.name}
-                        dotColor={getDotColor(sub.path)} pathname={pathname}
-                        searchParams={searchParams} onNavigate={onNavigate} />
+                      <SubItem
+                        key={sub.path}
+                        href={sub.path}
+                        label={sub.name}
+                        dotColor={getDotColor(sub.path)}
+                        pathname={pathname}
+                        onNavigate={onNavigate}
+                      />
                     ))}
                   </NavGroup>
                 );
@@ -244,7 +252,6 @@ export default function Sidebar({ mobileOpen = false, onClose = () => {} }) {
   const [mounted, setMounted]   = useState(false);
   const [rol, setRol]           = useState(null);
   const pathname     = usePathname();
-  const searchParams = useSearchParams();
 
   useEffect(() => { setMounted(true); }, []);
 

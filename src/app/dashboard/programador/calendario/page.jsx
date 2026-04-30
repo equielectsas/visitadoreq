@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * /dashboard/admin/calendario/page.jsx
+ * /dashboard/programador/calendario/page.jsx
  *
  * Calendario del ADMINISTRADOR.
  * Muestra TODAS las citas de TODOS los asesores (pendientes, activas, realizadas, reprogramadas).
