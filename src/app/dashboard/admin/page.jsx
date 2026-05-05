@@ -291,36 +291,49 @@ export default function AdminDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filtered.length > 0 ? filtered.map((v, i) => {
-                  return (
-                    <tr key={v.id || i} className="hover:bg-[#F4F6FA]/60 transition-colors group">
-                      <td className="px-6 py-3.5 font-semibold text-[#1C355E]">{v.cliente || v.nombre}</td>
-                      <td className="px-6 py-3.5 text-gray-500 text-xs font-medium">{v.asesorNombre || "—"}</td>
-                      <td className="px-6 py-3.5 text-gray-500 text-xs">{v.fecha}</td>
-                      <td className="px-6 py-3.5 text-gray-500 text-xs">{v.hora}</td>
-                      <td className="px-6 py-3.5"><Badge status={v.estado} /></td>
-                      <td className="px-6 py-3.5">
-                        {isFinished && (
-                          <button
-                            onClick={() => setSelectedVisit(v)}
-                            className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-[#1C355E] text-gray-400 hover:text-white
-                              flex items-center justify-center transition-all duration-150 opacity-0 group-hover:opacity-100"
-                            title="Ver detalles"
-                          >
-                            <EyeIcon />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                }) : (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-10 text-center text-[#98989A] text-sm font-medium">
-                      No hay visitas en este estado
+              {filtered.length > 0 ? filtered.map((v, i) => {
+                
+                const isFinished = v.estado === "realizada";
+
+                return (
+                  <tr key={v.id || i} className="hover:bg-[#F4F6FA]/60 transition-colors group">
+                    <td className="px-6 py-3.5 font-semibold text-[#1C355E]">
+                      {v.cliente || v.nombre}
+                    </td>
+
+                    <td className="px-6 py-3.5 text-gray-500 text-xs font-medium">
+                      {v.asesorNombre || "—"}
+                    </td>
+
+                    <td className="px-6 py-3.5 text-gray-500 text-xs">{v.fecha}</td>
+                    <td className="px-6 py-3.5 text-gray-500 text-xs">{v.hora}</td>
+
+                    <td className="px-6 py-3.5">
+                      <Badge status={v.estado} />
+                    </td>
+
+                    <td className="px-6 py-3.5">
+                      {isFinished && (
+                        <button
+                          onClick={() => setSelectedVisit(v)}
+                          className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-[#1C355E] text-gray-400 hover:text-white
+                          flex items-center justify-center transition-all duration-150 opacity-0 group-hover:opacity-100"
+                          title="Ver detalles"
+                        >
+                          <EyeIcon />
+                        </button>
+                      )}
                     </td>
                   </tr>
-                )}
-              </tbody>
+                );
+              }) : (
+                <tr>
+                  <td colSpan={6} className="px-6 py-10 text-center text-[#98989A] text-sm font-medium">
+                    No hay visitas en este estado
+                  </td>
+                </tr>
+              )}
+            </tbody>
             </table>
           </div>
           <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between">

@@ -2,8 +2,8 @@ import "./globals.css";
 import 'leaflet/dist/leaflet.css';
 
 export const metadata = {
-  title: "VisitaReq - Equielect",
-  description: "Dashboard de gestión de visitas y empresas",
+  title: "VISITAS EQ",
+  description: "Gestión de visitas equielect",
 };
 
 export default function RootLayout({ children }) {

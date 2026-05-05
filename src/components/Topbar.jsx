@@ -48,14 +48,16 @@ const MenuIcon = () => (
 );
 
 // ── Role config ───────────────────────────────────────────────────────────────
+// ── Role config ───────────────────────────────────────────────────────────────
 const ROL_DISPLAY = {
   adminPlataforma: "PROGRAMADOR",
-  adminComercial:  "ADMINISTRADOR",
+  adminComercial:  "ADMINISTRADOR",  // ✅ Se mantiene para compatibilidad con BD
   comercial:       "ASESOR",
 };
+
 const ROLE_STYLES = {
   adminPlataforma: { bg: "bg-[#1C355E]/10", text: "text-[#1C355E]",   label: "Programador"   },
-  adminComercial:  { bg: "bg-[#FFCD00]/20", text: "text-yellow-700",  label: "Administrador" },
+  adminComercial:  { bg: "bg-[#FFCD00]/20", text: "text-yellow-700",  label: "Administrador" }, // ✅ Se mantiene
   comercial:       { bg: "bg-emerald-100",   text: "text-emerald-700", label: "Asesor"        },
   default:         { bg: "bg-gray-100",      text: "text-gray-600",    label: "Usuario"       },
 };
@@ -325,9 +327,9 @@ export default function Topbar({ onMenuToggle }) {
   const fullName  = user?.nombre || "Cargando...";
 
   const perfilPath =
-    user?.rol === "comercial"        ? "/dashboard/asesor/perfil"
-    : user?.rol === "adminComercial" ? "/dashboard/admin/perfil"
-    : "/dashboard/programador/perfil";
+  user?.rol === "comercial"        ? "/dashboard/asesor/perfil"
+  : user?.rol === "adminComercial" ? "/dashboard/programador/perfil"
+  : "/dashboard/programador/perfil";
 
   return (
     <>
