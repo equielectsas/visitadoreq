@@ -111,7 +111,7 @@ function SuccessModal({ onClose }) {
         </p>
 
         <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mt-2">
-          <div className="h-full bg-[#F5C800] rounded-full anim-progress" />
+          <div className="h-full bg-[#008000] rounded-full anim-progress" />
         </div>
       </div>
 

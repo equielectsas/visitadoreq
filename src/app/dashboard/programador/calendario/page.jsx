@@ -4,9 +4,20 @@
  * /dashboard/programador/calendario/page.jsx
  *
  * Calendario del ADMINISTRADOR.
- * Muestra TODAS las citas de TODOS los asesores (pendientes, activas, realizadas, reprogramadas).
- * Cada asesor tiene un color único para distinguirlos visualmente.
- * Al hacer clic en un día, se abre un modal con detalle de todas las visitas del día.
+ * Muestra TODAS las citas de TODOS los asesores.
+ * Cada asesor tiene un color único + foto de perfil (cabecita) en los chips del calendario.
+ *
+ * FOTOS DE ASESORES:
+ * Se buscan en este orden:
+ *   1. localStorage "equielect_asesores_fotos"  → objeto { [asesorId | asesorNombre]: url }
+ *   2. campo `photoUrl` dentro del objeto cita   (si el backend lo provee)
+ *   3. Placeholder generado con ui-avatars.com   (iniciales con color del asesor)
+ *
+ * Cuando tengas las fotos reales, guarda en localStorage:
+ *   localStorage.setItem("equielect_asesores_fotos", JSON.stringify({
+ *     "Juan Pérez": "https://tu-bucket.com/juan.jpg",
+ *     "María López": "https://tu-bucket.com/maria.jpg",
+ *   }))
  */
 
 import { useState, useEffect } from "react";
@@ -21,20 +32,19 @@ const MONTH_NAMES = [
 ];
 const DAYS_HEADER = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
 
-// Paleta de colores para asesores — hasta 12 asesores distintos
 const ASESOR_PALETTE = [
-  { bg: "bg-blue-100",    text: "text-blue-800",    dot: "bg-blue-500",    border: "border-blue-200",  solid: "#3b82f6" },
-  { bg: "bg-rose-100",    text: "text-rose-800",    dot: "bg-rose-500",    border: "border-rose-200",  solid: "#f43f5e" },
-  { bg: "bg-emerald-100", text: "text-emerald-800", dot: "bg-emerald-500", border: "border-emerald-200",solid: "#10b981"},
-  { bg: "bg-amber-100",   text: "text-amber-800",   dot: "bg-amber-500",   border: "border-amber-200", solid: "#f59e0b" },
-  { bg: "bg-violet-100",  text: "text-violet-800",  dot: "bg-violet-500",  border: "border-violet-200",solid: "#7c3aed" },
-  { bg: "bg-cyan-100",    text: "text-cyan-800",    dot: "bg-cyan-500",    border: "border-cyan-200",  solid: "#06b6d4" },
-  { bg: "bg-fuchsia-100", text: "text-fuchsia-800", dot: "bg-fuchsia-500", border: "border-fuchsia-200",solid:"#d946ef" },
-  { bg: "bg-lime-100",    text: "text-lime-800",    dot: "bg-lime-500",    border: "border-lime-200",  solid: "#84cc16" },
-  { bg: "bg-orange-100",  text: "text-orange-800",  dot: "bg-orange-500",  border: "border-orange-200",solid: "#f97316" },
-  { bg: "bg-teal-100",    text: "text-teal-800",    dot: "bg-teal-500",    border: "border-teal-200",  solid: "#14b8a6" },
-  { bg: "bg-indigo-100",  text: "text-indigo-800",  dot: "bg-indigo-500",  border: "border-indigo-200",solid: "#6366f1" },
-  { bg: "bg-pink-100",    text: "text-pink-800",    dot: "bg-pink-500",    border: "border-pink-200",  solid: "#ec4899" },
+  { bg: "bg-blue-100",    text: "text-blue-800",    dot: "bg-blue-500",    border: "border-blue-200",  solid: "#3b82f6", hex: "3b82f6" },
+  { bg: "bg-rose-100",    text: "text-rose-800",    dot: "bg-rose-500",    border: "border-rose-200",  solid: "#f43f5e", hex: "f43f5e" },
+  { bg: "bg-emerald-100", text: "text-emerald-800", dot: "bg-emerald-500", border: "border-emerald-200",solid:"#10b981",  hex: "10b981" },
+  { bg: "bg-amber-100",   text: "text-amber-800",   dot: "bg-amber-500",   border: "border-amber-200", solid: "#f59e0b", hex: "f59e0b" },
+  { bg: "bg-violet-100",  text: "text-violet-800",  dot: "bg-violet-500",  border: "border-violet-200",solid: "#7c3aed", hex: "7c3aed" },
+  { bg: "bg-cyan-100",    text: "text-cyan-800",    dot: "bg-cyan-500",    border: "border-cyan-200",  solid: "#06b6d4", hex: "06b6d4" },
+  { bg: "bg-fuchsia-100", text: "text-fuchsia-800", dot: "bg-fuchsia-500", border: "border-fuchsia-200",solid:"#d946ef", hex: "d946ef" },
+  { bg: "bg-lime-100",    text: "text-lime-800",    dot: "bg-lime-500",    border: "border-lime-200",  solid: "#84cc16", hex: "84cc16" },
+  { bg: "bg-orange-100",  text: "text-orange-800",  dot: "bg-orange-500",  border: "border-orange-200",solid: "#f97316", hex: "f97316" },
+  { bg: "bg-teal-100",    text: "text-teal-800",    dot: "bg-teal-500",    border: "border-teal-200",  solid: "#14b8a6", hex: "14b8a6" },
+  { bg: "bg-indigo-100",  text: "text-indigo-800",  dot: "bg-indigo-500",  border: "border-indigo-200",solid: "#6366f1", hex: "6366f1" },
+  { bg: "bg-pink-100",    text: "text-pink-800",    dot: "bg-pink-500",    border: "border-pink-200",  solid: "#ec4899", hex: "ec4899" },
 ];
 
 const ESTADO_CONFIG = {
@@ -63,17 +73,62 @@ function buildAsesorColorMap(citas) {
   return map;
 }
 
-// Iniciales del nombre
 function initials(nombre = "") {
   return nombre.split(" ").slice(0, 2).map(p => p[0]).join("").toUpperCase() || "?";
+}
+
+/**
+ * Devuelve la URL de foto del asesor.
+ * Orden: fotosMap → cita.photoUrl → placeholder ui-avatars
+ */
+function getAsesorPhoto(nombre, color, fotosMap = {}, citaPhotoUrl = null) {
+  if (fotosMap[nombre]) return fotosMap[nombre];
+  if (citaPhotoUrl)     return citaPhotoUrl;
+  // Placeholder con iniciales y color del asesor
+  const ini = encodeURIComponent(initials(nombre));
+  const bg  = color?.hex || "1C355E";
+  return `https://ui-avatars.com/api/?name=${ini}&background=${bg}&color=fff&size=64&bold=true&rounded=true`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPONENTE: Avatar foto del asesor (círculo pequeño con imagen)
+// ─────────────────────────────────────────────────────────────────────────────
+function AsesorAvatar({ nombre, color, fotosMap, photoUrl, size = "sm" }) {
+  const src = getAsesorPhoto(nombre, color, fotosMap, photoUrl);
+  const [imgError, setImgError] = useState(false);
+
+  const sizeClass = size === "xs"
+    ? "w-4 h-4 text-[6px]"
+    : size === "sm"
+    ? "w-5 h-5 text-[7px]"
+    : "w-7 h-7 text-[9px]";
+
+  if (imgError) {
+    return (
+      <div
+        className={`${sizeClass} rounded-full flex items-center justify-center text-white font-black flex-shrink-0 ${color?.dot || "bg-gray-400"}`}
+      >
+        {initials(nombre)[0]}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={nombre}
+      onError={() => setImgError(true)}
+      className={`${sizeClass} rounded-full object-cover flex-shrink-0 ring-1 ring-white`}
+      style={{ boxShadow: `0 0 0 1.5px ${color?.solid || "#ccc"}` }}
+    />
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MODAL — detalle del día
 // ─────────────────────────────────────────────────────────────────────────────
-function DayDetailModal({ show, onClose, day, month, year, visitas, colorMap }) {
+function DayDetailModal({ show, onClose, day, month, year, visitas, colorMap, fotosMap }) {
   if (!show || !day) return null;
-
   const dateLabel = `${day} de ${MONTH_NAMES[month]} ${year}`;
 
   return (
@@ -86,7 +141,9 @@ function DayDetailModal({ show, onClose, day, month, year, visitas, colorMap }) 
           <div>
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Visitas del día</p>
             <h3 className="text-lg font-black text-[#1C355E] mt-0.5">{dateLabel}</h3>
-            <p className="text-xs text-gray-400 mt-0.5">{visitas.length} visita{visitas.length !== 1 ? "s" : ""} programadas</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {visitas.length} visita{visitas.length !== 1 ? "s" : ""} programadas
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -104,34 +161,36 @@ function DayDetailModal({ show, onClose, day, month, year, visitas, colorMap }) 
             const color  = colorMap[v.asesorNombre] || ASESOR_PALETTE[0];
             const estado = ESTADO_CONFIG[v.estado]  || ESTADO_CONFIG.pendiente;
             return (
-              <div
-                key={i}
-                className={`rounded-2xl border ${color.border} ${color.bg} p-4`}
-              >
-                {/* Empresa */}
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-2.5 min-w-0">
+              <div key={i} className={`rounded-2xl border ${color.border} ${color.bg} p-4`}>
+
+                {/* Empresa + estado */}
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2 min-w-0">
                     <span className="text-base flex-shrink-0">🏢</span>
                     <p className={`font-black text-sm truncate ${color.text}`}>
                       {v.datosVisita?.nombreEmpresa || v.cliente || "—"}
                     </p>
                   </div>
-                  {/* Estado pill */}
                   <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full flex-shrink-0 ${estado.pill}`}>
                     {estado.label}
                   </span>
                 </div>
 
-                {/* Asesor + hora */}
+                {/* Asesor con foto grande */}
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    {/* Avatar asesor */}
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[9px] font-black ${color.dot}`}>
-                      {initials(v.asesorNombre)}
+                  <div className="flex items-center gap-2.5">
+                    {/* Foto del asesor — tamaño md en el modal */}
+                    <AsesorAvatar
+                      nombre={v.asesorNombre}
+                      color={color}
+                      fotosMap={fotosMap}
+                      photoUrl={v.photoUrl}
+                      size="md"
+                    />
+                    <div>
+                      <p className={`text-xs font-black ${color.text}`}>{v.asesorNombre || "Asesor"}</p>
+                      <p className="text-[9px] text-gray-400 font-medium">Asesor</p>
                     </div>
-                    <span className={`text-xs font-bold ${color.text} truncate max-w-[130px]`}>
-                      {v.asesorNombre || "Asesor"}
-                    </span>
                   </div>
                   {v.hora && (
                     <span className="text-xs text-gray-500 font-semibold flex-shrink-0">
@@ -140,9 +199,8 @@ function DayDetailModal({ show, onClose, day, month, year, visitas, colorMap }) 
                   )}
                 </div>
 
-                {/* Motivo reprogramación */}
                 {v.motivoReprogramacion && (
-                  <p className="text-[10px] text-gray-500 mt-2 pl-8">
+                  <p className="text-[10px] text-gray-500 mt-2 pl-9">
                     📌 {v.motivoReprogramacion}
                   </p>
                 )}
@@ -161,33 +219,35 @@ function DayDetailModal({ show, onClose, day, month, year, visitas, colorMap }) 
 export default function AdminCalendarPage() {
   const today = new Date();
 
-  const [month, setMonth]         = useState(today.getMonth());
-  const [year, setYear]           = useState(today.getFullYear());
-  const [citas, setCitas]         = useState([]);
+  const [month, setMonth]             = useState(today.getMonth());
+  const [year, setYear]               = useState(today.getFullYear());
+  const [citas, setCitas]             = useState([]);
+  const [fotosMap, setFotosMap]       = useState({});
   const [selectedDay, setSelectedDay] = useState(null);
   const [showModal, setShowModal]     = useState(false);
   const [filtroAsesor, setFiltroAsesor] = useState("todos");
   const [filtroEstado, setFiltroEstado] = useState("todos");
 
   useEffect(() => {
+    // Citas
     const storedCitas = localStorage.getItem("equielect_citas");
     if (storedCitas) setCitas(JSON.parse(storedCitas));
+
+    // Fotos de asesores (opcional — cuando las tengas)
+    // Formato: { "Nombre Asesor": "https://url-de-la-foto.jpg" }
+    const storedFotos = localStorage.getItem("equielect_asesores_fotos");
+    if (storedFotos) setFotosMap(JSON.parse(storedFotos));
   }, []);
 
-  // Mapa de colores por asesor (estable)
   const colorMap = buildAsesorColorMap(citas);
-
-  // Lista de asesores únicos
   const asesores = Object.keys(colorMap);
 
-  // Citas filtradas por asesor y estado (si admin quiere filtrar la vista)
   const citasFiltradas = citas.filter(c => {
     if (filtroAsesor !== "todos" && c.asesorNombre !== filtroAsesor) return false;
     if (filtroEstado !== "todos" && c.estado !== filtroEstado) return false;
     return true;
   });
 
-  // Agrupar por día del mes/año actual
   const visitasByDay = {};
   for (const cita of citasFiltradas) {
     const fecha = parseDate(cita.fecha);
@@ -225,7 +285,6 @@ export default function AdminCalendarPage() {
   const totalMes      = Object.values(visitasByDay).reduce((s, a) => s + a.length, 0);
   const diasConVisita = Object.keys(visitasByDay).length;
 
-  // Agenda del mes — ordenada por fecha y hora
   const agendaMes = citasFiltradas
     .filter(c => {
       const f = parseDate(c.fecha);
@@ -269,8 +328,10 @@ export default function AdminCalendarPage() {
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Asesores</p>
             <div className="flex flex-wrap gap-2">
               {asesores.map(nombre => {
-                const color = colorMap[nombre];
+                const color      = colorMap[nombre];
                 const isSelected = filtroAsesor === nombre;
+                // Buscar photoUrl de cualquier cita de este asesor
+                const citaEjemplo = citas.find(c => c.asesorNombre === nombre);
                 return (
                   <button
                     key={nombre}
@@ -280,14 +341,20 @@ export default function AdminCalendarPage() {
                         ? `${color.bg} ${color.text} ${color.border} shadow-md scale-105`
                         : `bg-gray-50 text-gray-500 border-gray-200 hover:${color.bg} hover:${color.text}`}`}
                   >
-                    <span className={`w-2.5 h-2.5 rounded-full ${color.dot} flex-shrink-0`} />
+                    {/* Foto del asesor en la leyenda */}
+                    <AsesorAvatar
+                      nombre={nombre}
+                      color={color}
+                      fotosMap={fotosMap}
+                      photoUrl={citaEjemplo?.photoUrl}
+                      size="xs"
+                    />
                     {nombre}
-                    {isSelected && (
-                      <span className="ml-1 text-[9px] opacity-60">✕</span>
-                    )}
+                    {isSelected && <span className="ml-1 text-[9px] opacity-60">✕</span>}
                   </button>
                 );
               })}
+
               {/* Filtro estado */}
               <div className="ml-auto flex items-center gap-1.5 flex-wrap">
                 {["todos","pendiente","activa","realizada","reprogramada"].map(e => (
@@ -342,7 +409,6 @@ export default function AdminCalendarPage() {
 
           {/* Grid días */}
           <div className="grid grid-cols-7">
-
             {blanks.map((_, i) => (
               <div key={`b${i}`} className="h-32 border-b border-r border-gray-50/80 bg-gray-50/20" />
             ))}
@@ -360,7 +426,7 @@ export default function AdminCalendarPage() {
                     ${hasVisits ? "day-click" : ""}
                     ${todayFlag ? "bg-[#FFCD00]/8" : "bg-white"}`}
                 >
-                  {/* Número */}
+                  {/* Número del día */}
                   <div className="flex items-center justify-between mb-1 px-0.5">
                     <span className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-black transition-all flex-shrink-0
                       ${todayFlag
@@ -377,21 +443,24 @@ export default function AdminCalendarPage() {
                     )}
                   </div>
 
-                  {/* Chips de visitas — cada uno con color de asesor */}
+                  {/* Chips con FOTO del asesor */}
                   <div className="flex-1 space-y-0.5 overflow-hidden">
                     {dayVisits.slice(0, 3).map((v, vi) => {
                       const color = colorMap[v.asesorNombre] || ASESOR_PALETTE[0];
                       return (
                         <div
                           key={vi}
-                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md ${color.bg}`}
+                          className={`flex items-center gap-1 px-1 py-0.5 rounded-md ${color.bg}`}
                           title={`${v.asesorNombre} — ${v.datosVisita?.nombreEmpresa || v.cliente}`}
                         >
-                          {/* Avatar asesor */}
-                          <span className={`w-3 h-3 rounded-full flex items-center justify-center ${color.dot} text-white flex-shrink-0`}
-                            style={{ fontSize: "6px", fontWeight: 900 }}>
-                            {initials(v.asesorNombre)[0]}
-                          </span>
+                          {/* ★ FOTO DEL ASESOR ★ */}
+                          <AsesorAvatar
+                            nombre={v.asesorNombre}
+                            color={color}
+                            fotosMap={fotosMap}
+                            photoUrl={v.photoUrl}
+                            size="xs"
+                          />
                           <span className={`text-[8px] font-bold truncate leading-tight ${color.text}`}>
                             {v.datosVisita?.nombreEmpresa || v.cliente || "—"}
                           </span>
@@ -412,7 +481,7 @@ export default function AdminCalendarPage() {
           </div>
         </div>
 
-        {/* ── AGENDA DEL MES — lista completa ── */}
+        {/* ── AGENDA DEL MES ── */}
         {agendaMes.length > 0 && (
           <div className="fu fu3 bg-white rounded-3xl border border-gray-100 shadow-[0_2px_12px_-4px_rgba(28,53,94,0.08)] overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -452,12 +521,15 @@ export default function AdminCalendarPage() {
                         {v.datosVisita?.nombreEmpresa || v.cliente || "—"}
                       </p>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        {/* Avatar + nombre asesor */}
-                        <div className="flex items-center gap-1">
-                          <span className={`w-4 h-4 rounded-full flex items-center justify-center text-white flex-shrink-0 ${color.dot}`}
-                            style={{ fontSize: "7px", fontWeight: 900 }}>
-                            {initials(v.asesorNombre)}
-                          </span>
+                        {/* ★ FOTO DEL ASESOR en agenda ★ */}
+                        <div className="flex items-center gap-1.5">
+                          <AsesorAvatar
+                            nombre={v.asesorNombre}
+                            color={color}
+                            fotosMap={fotosMap}
+                            photoUrl={v.photoUrl}
+                            size="sm"
+                          />
                           <span className={`text-xs font-bold ${color.text}`}>{v.asesorNombre}</span>
                         </div>
                         {v.hora && <span className="text-xs text-gray-400">· 🕐 {v.hora}</span>}
@@ -496,6 +568,7 @@ export default function AdminCalendarPage() {
         year={year}
         visitas={selectedDay ? (visitasByDay[selectedDay] || []) : []}
         colorMap={colorMap}
+        fotosMap={fotosMap}
       />
     </LayoutDashboard>
   );
