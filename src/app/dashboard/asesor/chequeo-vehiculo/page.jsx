@@ -1,0 +1,487 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import LayoutDashboard from "@/components/LayoutDashboard";
+import {
+  colombiaDateYmd,
+  getChequeoVehiculoState,
+  markChequeoEnviado,
+  getAuthTokenFromStorage,
+} from "@/utils/chequeoVehiculoStorage";
+import {
+  CARRO_SECCIONES,
+  MOTO_SECCIONES,
+  OPCIONES_SI_NO,
+  OPCIONES_C_R_D,
+  OPCIONES_C_D,
+} from "@/utils/chequeoVehiculoFields";
+
+function emptyCheckMap(keys) {
+  return keys.reduce((acc, { key }) => {
+    acc[key] = "";
+    return acc;
+  }, {});
+}
+
+function fieldCompleteClass(filled) {
+  return filled
+    ? "border-emerald-400/90 bg-emerald-50/60 text-gray-900 shadow-[0_0_0_1px_rgba(52,211,153,0.15)]"
+    : "border-gray-200 bg-white text-gray-800";
+}
+
+export default function ChequeoVehiculoPage() {
+  const [user, setUser] = useState(null);
+  const [tipo, setTipo] = useState(null); // 'carro' | 'moto' | 'publico'
+  const [cedulaFisica, setCedulaFisica] = useState("");
+  const [placa, setPlaca] = useState("");
+  const [kilometraje, setKilometraje] = useState("");
+  const [observaciones, setObservaciones] = useState("");
+  const [checks, setChecks] = useState({});
+  const [todoOk, setTodoOk] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+  const [tick, setTick] = useState(0);
+
+  const secciones = useMemo(() => {
+    if (tipo === "carro" || tipo === "publico") return CARRO_SECCIONES;
+    if (tipo === "moto") return MOTO_SECCIONES;
+    return [];
+  }, [tipo]);
+
+  const flatKeys = useMemo(() => {
+    const ks = [];
+    for (const sec of secciones) {
+      for (const it of sec.items) ks.push(it);
+    }
+    return ks;
+  }, [secciones]);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("user");
+    if (stored) setUser(JSON.parse(stored));
+  }, []);
+
+  useEffect(() => {
+    const onUpd = () => setTick((t) => t + 1);
+    window.addEventListener("chequeo-vehiculo-updated", onUpd);
+    return () => window.removeEventListener("chequeo-vehiculo-updated", onUpd);
+  }, []);
+
+  const estadoHoy = useMemo(() => {
+    if (!user) return null;
+    return getChequeoVehiculoState(user);
+  }, [user, tick]);
+
+  const hoy = colombiaDateYmd();
+  const carroListo = estadoHoy?.fechaYmd === hoy && estadoHoy?.completados?.Carro;
+  const motoListo = estadoHoy?.fechaYmd === hoy && estadoHoy?.completados?.Motocicleta;
+  const publicoListo = estadoHoy?.fechaYmd === hoy && estadoHoy?.completados?.["Transporte Público"];
+
+  useEffect(() => {
+    if (!tipo) {
+      setChecks({});
+      return;
+    }
+    setChecks(emptyCheckMap(flatKeys));
+    setTodoOk(false);
+    setCedulaFisica("");
+    setPlaca("");
+    setKilometraje("");
+    setObservaciones("");
+  }, [tipo]);
+
+  const setCheck = (key, v) => setChecks((c) => ({ ...c, [key]: v }));
+
+  const validar = () => {
+    // documentos
+    if (!cedulaFisica.trim()) return "Cédula de ciudadanía (Si/No) es obligatoria.";
+    if (!placa.trim()) return "Placa obligatoria.";
+    const km = Number(String(kilometraje).replace(",", "."));
+    if (!Number.isFinite(km) || km < 0) return "Kilometraje inválido.";
+    for (const it of flatKeys) {
+      const key = it.key;
+      if (!checks[key]?.trim()) return `Completa: ${it.label}`;
+    }
+    return "";
+  };
+
+  const toggleTodoOk = () => {
+    setTodoOk((prev) => {
+      const next = !prev;
+      if (next) {
+        // Activar: documentos en "Si" y el resto en "Conforme"
+        setChecks((p) => {
+          const n = { ...p };
+          for (const sec of secciones) {
+            if (sec.kind === "si-no") {
+              for (const it of sec.items) n[it.key] = "Si";
+              continue;
+            }
+            for (const it of sec.items) n[it.key] = "Conforme";
+          }
+          return n;
+        });
+        setCedulaFisica("Si");
+      } else {
+        // Desactivar: limpiar todo lo seleccionado
+        setChecks(emptyCheckMap(flatKeys));
+        setCedulaFisica("");
+        setPlaca("");
+        setKilometraje("");
+        setObservaciones("");
+      }
+      return next;
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    const msg = validar();
+    if (msg) {
+      setError(msg);
+      return;
+    }
+    const token = getAuthTokenFromStorage();
+    if (!token) {
+      setError("No hay sesión. Vuelve a iniciar sesión.");
+      return;
+    }
+    const cedulaNum = Number(String(user?.cedula).replace(/\D/g, ""));
+    if (!cedulaNum || cedulaNum < 10000) {
+      setError("Tu cédula no cumple el formato requerido por el servidor (número ≥ 10000).");
+      return;
+    }
+
+    // Proxy same-origin en Next (next.config.mjs → CHEQUEO_API_REWRITE_TARGET, default :3001).
+    const path =
+      tipo === "moto"
+        ? "/chequeoVehiculos/chequeoMoto"
+        : "/chequeoVehiculos/chequeoCarro";
+    const url = `/api-chequeo${path}`;
+
+    const km = Number(String(kilometraje).replace(",", "."));
+
+    const body = {
+      fecha: new Date().toISOString(),
+      nombre: user.nombre || "",
+      rol: user.rol || "comercial",
+      cedula: cedulaNum,
+      placa: placa.trim().toUpperCase(),
+      kilometraje: km,
+      observaciones: observaciones.trim() || "",
+      ...checks,
+      cedulaFisica: checks.cedulaFisica?.trim() || cedulaFisica.trim(),
+    };
+
+    setSending(true);
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token,
+        },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const boomMsg =
+          data?.output?.payload?.message ||
+          (Array.isArray(data?.errors) && data.errors.map((e) => e.message).filter(Boolean).join("; "));
+        throw new Error(
+          boomMsg || data.message || data.msg || `Error ${res.status}`
+        );
+      }
+      if (tipo === "moto") markChequeoEnviado(user, "Motocicleta");
+      else if (tipo === "publico") markChequeoEnviado(user, "Transporte Público");
+      else markChequeoEnviado(user, "Carro");
+      setDone(true);
+      setTimeout(() => setDone(false), 2500);
+    } catch (err) {
+      const msg = err?.message || "";
+      if (
+        msg === "Failed to fetch" ||
+        /networkerror|load failed|fetch/i.test(msg) ||
+        err?.name === "TypeError"
+      ) {
+        setError(
+          "No se pudo conectar con el servidor de chequeo (proxy /api-chequeo). " +
+            "Inicia el API de plataforma (suele ser puerto 3001) o define CHEQUEO_API_REWRITE_TARGET en el entorno y reinicia npm run dev."
+        );
+      } else {
+        setError(msg || "No se pudo enviar el formulario.");
+      }
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (!user) {
+    return (
+      <LayoutDashboard>
+        <p className="text-gray-500">Cargando…</p>
+      </LayoutDashboard>
+    );
+  }
+
+  return (
+    <LayoutDashboard>
+      <div className="max-w-3xl mx-auto space-y-6 pb-12">
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Seguridad vial</p>
+          <h1 className="text-2xl font-black text-gray-800 mt-0.5">Chequeo vehículo</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Obligatorio <strong>una vez al día</strong> por tipo de transporte (Carro o Motocicleta) si vas a{" "}
+            <strong>cerrar visitas</strong> con ese medio. Cada día nuevo debes volver a enviarlo.{" "}
+            <Link href="/dashboard/asesor" className="text-[#1C355E] font-semibold underline">
+              Volver a visitas
+            </Link>
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm space-y-3">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Estado hoy ({hoy})</p>
+          <div className="flex flex-wrap gap-3">
+            <span
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${
+                carroListo ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              Carro: {carroListo ? "Enviado ✓" : "Pendiente"}
+            </span>
+            <span
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${
+                motoListo ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              Motocicleta: {motoListo ? "Enviado ✓" : "Pendiente"}
+            </span>
+            <span
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${
+                publicoListo ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              Transporte público: {publicoListo ? "Enviado ✓" : "Pendiente"}
+            </span>
+          </div>
+        </div>
+
+        {!tipo && (
+          <div className="grid sm:grid-cols-3 gap-4">
+            <button
+              type="button"
+              onClick={() => setTipo("carro")}
+              className="rounded-2xl border-2 border-gray-200 p-8 text-left hover:border-[#1C355E] hover:bg-[#1C355E]/5 transition-all"
+            >
+              <p className="text-4xl mb-2">🚗</p>
+              <p className="font-black text-[#1C355E]">Chequeo carro</p>
+              <p className="text-xs text-gray-500 mt-1">Formulario completo según plataforma</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTipo("moto")}
+              className="rounded-2xl border-2 border-gray-200 p-8 text-left hover:border-[#1C355E] hover:bg-[#1C355E]/5 transition-all"
+            >
+              <p className="text-4xl mb-2">🏍️</p>
+              <p className="font-black text-[#1C355E]">Chequeo moto</p>
+              <p className="text-xs text-gray-500 mt-1">Formulario completo según plataforma</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTipo("publico")}
+              className="rounded-2xl border-2 border-gray-200 p-8 text-left hover:border-[#1C355E] hover:bg-[#1C355E]/5 transition-all"
+            >
+              <p className="text-4xl mb-2">🚌</p>
+              <p className="font-black text-[#1C355E]">Chequeo transporte público</p>
+              <p className="text-xs text-gray-500 mt-1">Se llena igual que carro (no pasa derecho)</p>
+            </button>
+          </div>
+        )}
+
+        {tipo && (
+          <form onSubmit={handleSubmit} className="space-y-6 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <h2 className="text-lg font-bold text-gray-800">
+                {tipo === "moto" ? "Lista de chequeo preoperacional para motos" : "Lista de chequeo preoperacional para carros"}
+              </h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setTipo(null);
+                  setError("");
+                }}
+                className="text-sm font-semibold text-gray-500 hover:text-[#1C355E]"
+              >
+                Cambiar tipo
+              </button>
+            </div>
+
+            <div
+              className={`flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl border px-3 py-2 transition-colors ${
+                todoOk
+                  ? "border-emerald-300/80 bg-emerald-50/50"
+                  : "border-gray-200/90 bg-gray-50/40"
+              }`}
+            >
+              <div className="flex items-start gap-2.5 min-w-0">
+                <span
+                  className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[11px] font-bold ${
+                    todoOk ? "bg-emerald-500 text-white" : "bg-white text-[#1C355E] shadow-sm ring-1 ring-gray-200"
+                  }`}
+                  aria-hidden
+                >
+                  {todoOk ? "✓" : "⚡"}
+                </span>
+                <div className="min-w-0 pt-0.5">
+                  <p className="text-xs font-semibold text-gray-800">Relleno rápido</p>
+                  <p className="text-[11px] text-gray-500 leading-snug">
+                    Documentos en <span className="text-gray-700 font-medium">Sí</span>, ítems en{" "}
+                    <span className="text-gray-700 font-medium">Conforme</span>. Pulsa de nuevo para vaciar.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={toggleTodoOk}
+                className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                  todoOk
+                    ? "bg-white text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50"
+                    : "bg-[#1C355E] text-white hover:bg-[#16294d] shadow-sm"
+                }`}
+              >
+                {todoOk ? "Deshacer" : "Todo conforme"}
+              </button>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase">Nombre</label>
+                <div className="px-4 py-3 rounded-xl border border-gray-100 bg-gray-50 text-sm font-medium text-gray-700">
+                  {user.nombre}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase">Cédula</label>
+                <div className="px-4 py-3 rounded-xl border border-gray-100 bg-gray-50 text-sm font-medium text-gray-700">
+                  {user.cedula}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase">
+                  Placa <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={placa}
+                  onChange={(e) => setPlaca(e.target.value)}
+                  className={`px-4 py-2.5 rounded-xl border text-sm uppercase transition-colors ${fieldCompleteClass(
+                    Boolean(placa.trim())
+                  )}`}
+                />
+              </div>
+              <div className="flex flex-col gap-1 sm:col-span-2">
+                <label className="text-xs font-semibold text-gray-500 uppercase">
+                  Kilometraje <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={kilometraje}
+                  onChange={(e) => setKilometraje(e.target.value)}
+                  className={`px-4 py-2.5 rounded-xl border text-sm max-w-xs transition-colors ${fieldCompleteClass(
+                    kilometraje !== "" && Number.isFinite(Number(String(kilometraje).replace(",", ".")))
+                  )}`}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-1">
+              {secciones.map((sec) => {
+                const opciones =
+                  sec.kind === "si-no" ? OPCIONES_SI_NO :
+                  sec.kind === "cd" ? OPCIONES_C_D :
+                  OPCIONES_C_R_D;
+
+                return (
+                  <div key={sec.title} className="rounded-2xl border border-gray-100 p-4 bg-white">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <p className="text-xs font-black text-gray-600 uppercase tracking-wide">{sec.title}</p>
+                    </div>
+                    <div className="mt-3 grid sm:grid-cols-2 gap-3">
+                      {sec.items.map(({ key, label }) => {
+                        const rawVal =
+                          key === "cedulaFisica"
+                            ? checks[key] || cedulaFisica || ""
+                            : checks[key] || "";
+                        const filled = Boolean(String(rawVal).trim());
+                        return (
+                        <div key={key} className="flex flex-col gap-1">
+                          <label className="text-xs font-medium text-gray-600">
+                            {label} <span className="text-red-400">*</span>
+                          </label>
+                          <select
+                            value={rawVal}
+                            onChange={(e) => {
+                              setCheck(key, e.target.value);
+                              if (key === "cedulaFisica") setCedulaFisica(e.target.value);
+                              setTodoOk(false);
+                            }}
+                            className={`px-3 py-2 rounded-xl border text-sm transition-colors ${fieldCompleteClass(
+                              filled
+                            )}`}
+                          >
+                            <option value="">Seleccionar…</option>
+                            {opciones.map((op) => (
+                              <option key={op} value={op}>{op}</option>
+                            ))}
+                          </select>
+                        </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold text-gray-500 uppercase">Observaciones</label>
+              <textarea
+                rows={3}
+                value={observaciones}
+                onChange={(e) => setObservaciones(e.target.value)}
+                className={`px-4 py-2.5 rounded-xl border text-sm resize-none transition-colors ${fieldCompleteClass(
+                  Boolean(observaciones.trim())
+                )}`}
+                placeholder="Opcional"
+              />
+            </div>
+
+            {error && (
+              <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 font-medium">
+                {error}
+              </div>
+            )}
+            {done && (
+              <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-800 font-bold">
+                ¡Enviado correctamente! Ya puedes cerrar visitas con este tipo de transporte hoy.
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={sending}
+              className="w-full py-4 rounded-xl bg-[#1C355E] text-white font-bold text-sm hover:bg-[#16294d] disabled:opacity-50"
+            >
+              {sending ? "Enviando…" : "Enviar chequeo al servidor"}
+            </button>
+          </form>
+        )}
+      </div>
+    </LayoutDashboard>
+  );
+}

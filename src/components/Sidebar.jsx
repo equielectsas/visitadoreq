@@ -39,6 +39,12 @@ const ICONS = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
     </svg>
   ),
+  vehiculo: (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 17h8M6 17v-2l1.5-4h9L18 15v2M6 17H4m14 0h2M9 11h6" />
+      <circle cx="7" cy="17" r="1.5" /><circle cx="17" cy="17" r="1.5" />
+    </svg>
+  ),
   default: (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -64,6 +70,7 @@ function getIcon(item) {
   if (name.includes("contacto")) return ICONS.contact;
   if (name.includes("reporte")) return ICONS.report;
   if (name.includes("chart") || name.includes("analisis")) return ICONS.chart;
+  if (name.includes("vehiculo") || name.includes("chequeo")) return ICONS.vehiculo;
   return ICONS[name] || ICONS.default;
 }
 const ROL_LABELS = {

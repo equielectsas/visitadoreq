@@ -1,5 +1,5 @@
 export const roleRoutes = {
-  adminPlataforma: "/dashboard/programador",
-  adminComercial:  "/dashboard/admin",       // ✅ Ruta distinta si el flujo es diferente
+  adminPlataforma: "/dashboard/admin",
+  adminComercial:  "/dashboard/admin",
   comercial:       "/dashboard/asesor",
 };

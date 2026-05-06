@@ -6,7 +6,16 @@ import LayoutDashboard from "@/components/LayoutDashboard";
 const PAGE_SIZE = 15;
 const LIMIT = 200;
 
-export default function Clientes() {
+function getToken() {
+  try {
+    const u = JSON.parse(localStorage.getItem("user") || "null");
+    return u?.token || localStorage.getItem("token");
+  } catch {
+    return localStorage.getItem("token");
+  }
+}
+
+export default function ContactosPage() {
   const [allData, setAllData] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState("");
@@ -14,36 +23,28 @@ export default function Clientes() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // 🔥 FETCH CLIENTES (PAGINADO DESDE BACKEND)
   const fetchClientes = useCallback(async (offset = 0, accum = []) => {
     try {
       setLoading(true);
 
-      const token = localStorage.getItem("token");
+      const token = getToken();
 
-      const res = await fetch(
-        `/api/clientes?limit=${LIMIT}&offset=${offset}`,
-        {
-          headers: {
-  Authorization: `Bearer ${token}`,
-}
-        }
-      );
+      const res = await fetch(`/api/clientes?limit=${LIMIT}&offset=${offset}`, {
+        headers: {
+          Authorization: token,
+        },
+      });
 
       if (!res.ok) throw new Error("Error al obtener clientes");
 
       const data = await res.json();
 
-      const lista = Array.isArray(data)
-        ? data
-        : data.clientes ?? data.data ?? [];
-
+      const lista = Array.isArray(data) ? data : data.clientes ?? data.data ?? [];
       const total = [...accum, ...lista];
 
       setAllData(total);
       setFiltered(total);
 
-      // 🔁 PAGINACIÓN AUTOMÁTICA
       if (lista.length === LIMIT) {
         fetchClientes(offset + LIMIT, total);
       } else {
@@ -59,10 +60,8 @@ export default function Clientes() {
     fetchClientes(0, []);
   }, [fetchClientes]);
 
-  // 🔍 FILTRO
   useEffect(() => {
     const term = search.toLowerCase();
-
     const result = term
       ? allData.filter(
           (c) =>
@@ -76,11 +75,7 @@ export default function Clientes() {
   }, [search, allData]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-
-  const slice = filtered.slice(
-    (page - 1) * PAGE_SIZE,
-    page * PAGE_SIZE
-  );
+  const slice = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const activos = allData.filter(
     (c) =>
@@ -90,13 +85,10 @@ export default function Clientes() {
 
   return (
     <LayoutDashboard>
-      {/* HEADER */}
       <div className="flex justify-between flex-wrap gap-3 mb-6">
         <div>
           <h1 className="text-xl font-medium text-gray-800">Contactos</h1>
-          <p className="text-sm text-gray-500">
-            Directorio de contactos
-          </p>
+          <p className="text-sm text-gray-500">Directorio de contactos</p>
         </div>
 
         <input
@@ -108,27 +100,20 @@ export default function Clientes() {
         />
       </div>
 
-      {/* RESUMEN */}
       <div className="grid grid-cols-3 gap-3 mb-5">
         <Card label="Total contactos" value={allData.length} loading={loading} />
         <Card label="Activos" value={activos} loading={loading} />
         <Card label="Resultados" value={filtered.length} loading={loading} />
       </div>
 
-      {/* TABLA */}
       <div className="bg-white border rounded-xl overflow-hidden">
-        {error && (
-          <div className="p-4 text-red-600 bg-red-50">{error}</div>
-        )}
+        {error && <div className="p-4 text-red-600 bg-red-50">{error}</div>}
 
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
               {["NIT", "Nombre", "Ciudad", "Teléfono", "Estado"].map((h) => (
-                <th
-                  key={h}
-                  className="px-4 py-2 text-left text-xs text-gray-400 border-b"
-                >
+                <th key={h} className="px-4 py-2 text-left text-xs text-gray-400 border-b">
                   {h}
                 </th>
               ))}
@@ -150,27 +135,16 @@ export default function Clientes() {
               </tr>
             ) : (
               slice.map((c, i) => {
-                // 🔥 NORMALIZACIÓN DE DATOS (CLAVE)
                 const nit = c.nit ?? "—";
-
                 const nombre =
-                  c.razonSocial ||
-                  c.nombre ||
-                  c.NOMBRE ||
-                  `Cliente ${c.nit}`;
-
+                  c.razonSocial || c.nombre || c.NOMBRE || `Cliente ${c.nit}`;
                 const ciudad =
-                  c.nombreCiudad ||
-                  c.ciudad ||
-                  c.CIUDAD ||
-                  "Sin ciudad";
-
+                  c.nombreCiudad || c.ciudad || c.CIUDAD || "Sin ciudad";
                 const tel =
                   c.telefono ||
                   c.TELEFONO ||
                   c.Telefonos?.[0]?.numero ||
                   "—";
-
                 const activo =
                   (c.estado ?? "").toString() === "1" ||
                   (c.estado ?? "").toString().toLowerCase() === "activo";
@@ -199,7 +173,6 @@ export default function Clientes() {
           </tbody>
         </table>
 
-        {/* PAGINACIÓN */}
         <div className="flex justify-between p-3 text-xs">
           <span>
             {filtered.length > 0
@@ -223,9 +196,7 @@ export default function Clientes() {
             </span>
 
             <button
-              onClick={() =>
-                setPage((p) => Math.min(totalPages || 1, p + 1))
-              }
+              onClick={() => setPage((p) => Math.min(totalPages || 1, p + 1))}
               disabled={page >= totalPages}
             >
               →
@@ -237,14 +208,12 @@ export default function Clientes() {
   );
 }
 
-// 🔹 COMPONENTE CARD
 function Card({ label, value, loading }) {
   return (
     <div className="bg-white p-4 border rounded-lg">
       <p className="text-xs text-gray-400">{label}</p>
-      <p className="text-xl font-medium">
-        {loading ? "..." : value}
-      </p>
+      <p className="text-xl font-medium">{loading ? "..." : value}</p>
     </div>
   );
 }
+

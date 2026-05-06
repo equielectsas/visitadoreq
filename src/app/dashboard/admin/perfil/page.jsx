@@ -14,6 +14,29 @@
 import { useState, useEffect, useRef } from "react";
 import LayoutDashboard from "@/components/LayoutDashboard";
 
+function getToken() {
+  try {
+    const u = JSON.parse(localStorage.getItem("user") || "null");
+    return u?.token || localStorage.getItem("token");
+  } catch {
+    return localStorage.getItem("token");
+  }
+}
+
+async function fetchVisitas({ page = 1, limit = 500 } = {}) {
+  const token = getToken();
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  const res = await fetch(`/api/visitas?${params.toString()}`, {
+    headers: { Authorization: token },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message || `Error ${res.status}`);
+  if (Array.isArray(data?.visitas)) return data.visitas;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data)) return data;
+  return [];
+}
+
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const CameraIcon = () => (
   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -219,8 +242,20 @@ export default function PerfilPage() {
       setForm(u);
       if (u.avatar) setAvatar(u.avatar);
     }
-    const storedCitas = localStorage.getItem("equielect_citas");
-    if (storedCitas) setAllCitas(JSON.parse(storedCitas));
+
+    let mounted = true;
+    (async () => {
+      try {
+        const v = await fetchVisitas({ page: 1, limit: 500 });
+        if (mounted) setAllCitas(v);
+      } catch {
+        if (mounted) setAllCitas([]);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));

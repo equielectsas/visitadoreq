@@ -10,6 +10,29 @@
 import { useState, useEffect } from "react";
 import LayoutDashboard from "@/components/LayoutDashboard";
 
+function getToken() {
+  try {
+    const u = JSON.parse(localStorage.getItem("user") || "null");
+    return u?.token || localStorage.getItem("token");
+  } catch {
+    return localStorage.getItem("token");
+  }
+}
+
+async function fetchVisitas({ page = 1, limit = 500 } = {}) {
+  const token = getToken();
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  const res = await fetch(`/api/visitas?${params.toString()}`, {
+    headers: { Authorization: token },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message || `Error ${res.status}`);
+  if (Array.isArray(data?.visitas)) return data.visitas;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data)) return data;
+  return [];
+}
+
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const CalIcon = () => (
   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -124,23 +147,31 @@ function VisitDetailModal({ visit, onClose }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MONTHLY DATA (placeholder — replace with real data from API/localStorage)
-const MONTHLY_DATA = [
-  { mes: "Ene", visitas: 38 }, { mes: "Feb", visitas: 52 },
-  { mes: "Mar", visitas: 61 }, { mes: "Abr", visitas: 45 },
-  { mes: "May", visitas: 78 }, { mes: "Jun", visitas: 55 },
-  { mes: "Jul", visitas: 90 },
-];
-
 export default function AdminDashboard() {
   const [allCitas, setAllCitas]   = useState([]);
   const [activeTab, setActiveTab] = useState("todos");
   const [selectedVisit, setSelectedVisit] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState("");
 
   useEffect(() => {
-    const stored = localStorage.getItem("equielect_citas");
-    if (stored) setAllCitas(JSON.parse(stored));
+    let mounted = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError("");
+        const v = await fetchVisitas({ page: 1, limit: 500 });
+        if (mounted) setAllCitas(v);
+      } catch (e) {
+        if (mounted) setError(e?.message || "No se pudieron cargar las visitas.");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const tabs = ["todos", "activa", "pendiente", "realizada"];
@@ -151,7 +182,49 @@ export default function AdminDashboard() {
   // Unique advisors who have citas
   const uniqueAsesores = [...new Set(allCitas.map((c) => c.asesorNombre).filter(Boolean))].length;
 
-  const maxBar = Math.max(...MONTHLY_DATA.map((d) => d.visitas));
+  const months = (() => {
+    return [...new Set(allCitas.map((c) => (typeof c?.fecha === "string" ? c.fecha.slice(0, 7) : "")).filter(Boolean))]
+      .sort()
+      .reverse();
+  })();
+
+  useEffect(() => {
+    if (!selectedMonth && months.length > 0) setSelectedMonth(months[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [months.length]);
+
+  const monthCitas = selectedMonth
+    ? allCitas.filter((c) => typeof c?.fecha === "string" && c.fecha.slice(0, 7) === selectedMonth)
+    : allCitas;
+
+  const monthStats = {
+    total: monthCitas.length,
+    realizadas: monthCitas.filter((c) => c.estado === "realizada").length,
+    pendientes: monthCitas.filter((c) => c.estado === "pendiente").length,
+    activas: monthCitas.filter((c) => c.estado === "activa").length,
+    reprogramadas: monthCitas.filter((c) => c.estado === "reprogramada").length,
+  };
+
+  const globalGoal = 95;
+  const cumplimientoPct = globalGoal > 0 ? (monthStats.realizadas / globalGoal) * 100 : 0;
+  const cumplimientoPctLabel = Number.isFinite(cumplimientoPct) ? Math.round(cumplimientoPct) : 0;
+
+  const monthLabels = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+  const thisYear = new Date().getFullYear();
+  const monthlyData = (() => {
+    const counts = new Array(12).fill(0);
+    for (const c of allCitas) {
+      const ymd = c?.fecha;
+      if (!ymd || typeof ymd !== "string" || ymd.length < 7) continue;
+      const y = Number(ymd.slice(0, 4));
+      const m = Number(ymd.slice(5, 7));
+      if (!Number.isFinite(y) || !Number.isFinite(m)) continue;
+      if (y !== thisYear) continue;
+      if (m >= 1 && m <= 12) counts[m - 1] += 1;
+    }
+    return counts.map((visitas, i) => ({ mes: monthLabels[i], visitas }));
+  })();
+  const maxBar = Math.max(1, ...monthlyData.map((d) => d.visitas));
 
   const RESOLVED_DATA = [
     { label: "Realizadas", value: allCitas.length > 0 ? Math.round((allCitas.filter(c => c.estado === "realizada").length / allCitas.length) * 100) : 64, color: "bg-[#1C355E]" },
@@ -190,22 +263,54 @@ export default function AdminDashboard() {
         {/* Stat cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-7">
           <div className="fade-up fade-up-1">
-            <StatCard icon={<CalIcon />}   label="Citas Totales"  value={allCitas.length || 243}
-              sub="+12 este mes" accent="bg-[#1C355E]" />
+            <StatCard
+              icon={<CheckIcon />}
+              label="Cumplimiento (finalizadas)"
+              value={`${cumplimientoPctLabel}%`}
+              sub={`${monthStats.realizadas} / ${globalGoal} realizadas (mes)`}
+              accent="bg-emerald-400"
+            />
           </div>
           <div className="fade-up fade-up-2">
-            <StatCard icon={<CheckIcon />} label="Realizadas"     value={allCitas.filter(c => c.estado === "realizada").length || 164}
-              sub="completadas"  accent="bg-emerald-400" />
+            <StatCard icon={<CalIcon />}   label="Citas (mes)"  value={monthStats.total}
+              sub="todas" accent="bg-[#1C355E]" />
           </div>
           <div className="fade-up fade-up-3">
-            <StatCard icon={<ClockIcon />} label="Pendientes"     value={allCitas.filter(c => c.estado === "pendiente").length || 54}
+            <StatCard icon={<ClockIcon />} label="Pendientes (mes)"     value={monthStats.pendientes}
               sub="por atender"  accent="bg-[#FFCD00]" />
           </div>
           <div className="fade-up fade-up-4">
-            <StatCard icon={<UsersIcon />} label="Asesores"       value={uniqueAsesores || 8}
+            <StatCard icon={<UsersIcon />} label="Asesores"       value={uniqueAsesores}
               sub="activos"      accent="bg-[#98989A]/60" />
           </div>
         </div>
+
+        <div className="fade-up fade-up-2 mb-7 flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-[#98989A] uppercase tracking-widest">Mes</span>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="text-sm font-bold text-[#1C355E] bg-white border border-gray-200 rounded-xl px-3 py-2 outline-none"
+              disabled={loading}
+            >
+              {months.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="text-xs text-[#98989A] font-medium bg-white border border-gray-200 px-3 py-2 rounded-xl shadow-sm">
+            Objetivo global: <span className="font-black text-[#1C355E]">{globalGoal}</span> finalizadas / mes
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-7 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700 font-semibold">
+            {error}
+          </div>
+        )}
 
         {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-7">
@@ -213,12 +318,12 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest">Visitas mensuales</p>
-                <p className="text-lg font-black text-[#1C355E] mt-0.5">2025</p>
+                <p className="text-lg font-black text-[#1C355E] mt-0.5">{thisYear}</p>
               </div>
               <span className="text-[11px] font-semibold text-[#1C355E] bg-[#1C355E]/6 px-3 py-1 rounded-full">Año actual</span>
             </div>
             <div className="flex items-end gap-2 h-36">
-              {MONTHLY_DATA.map((d, i) => (
+              {monthlyData.map((d, i) => (
                 <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
                   <span className="text-[10px] font-bold text-[#1C355E]">{d.visitas}</span>
                   <div className={`w-full rounded-t-lg bar-grow ${i === 4 ? "bg-[#FFCD00]" : "bg-[#1C355E]/40"}`}
@@ -248,11 +353,11 @@ export default function AdminDashboard() {
             </div>
             <div className="mt-5 pt-4 border-t border-gray-100 grid grid-cols-3 gap-2 text-center">
               <div>
-                <p className="text-base font-black text-emerald-600">{allCitas.filter(c => c.estado === "realizada").length || 64}</p>
+                <p className="text-base font-black text-emerald-600">{monthStats.realizadas}</p>
                 <p className="text-[10px] text-[#98989A] font-medium">Hechas</p>
               </div>
               <div>
-                <p className="text-base font-black text-yellow-500">{allCitas.filter(c => c.estado === "pendiente").length || 22}</p>
+                <p className="text-base font-black text-yellow-500">{monthStats.pendientes}</p>
                 <p className="text-[10px] text-[#98989A] font-medium">Pendientes</p>
               </div>
               <div>

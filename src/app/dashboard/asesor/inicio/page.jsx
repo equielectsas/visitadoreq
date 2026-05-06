@@ -7,8 +7,69 @@
  * No hay estado "perdida" — las citas se reprograman.
  */
 
-import { useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import LayoutDashboard from "@/components/LayoutDashboard";
+
+function getToken() {
+  try {
+    const u = JSON.parse(localStorage.getItem("user") || "null");
+    return u?.token || localStorage.getItem("token");
+  } catch {
+    return localStorage.getItem("token");
+  }
+}
+
+async function fetchVisitas() {
+  const token = getToken();
+  const params = new URLSearchParams({ page: "1", limit: "500" });
+  const res = await fetch(`/api/visitas?${params.toString()}`, {
+    headers: { Authorization: token },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message || `Error ${res.status}`);
+  return Array.isArray(data?.visitas) ? data.visitas : Array.isArray(data?.data) ? data.data : [];
+}
+
+function ymdToYearMonth(ymd) {
+  if (!ymd || typeof ymd !== "string" || ymd.length < 7) return "";
+  return ymd.slice(0, 7); // yyyy-mm
+}
+
+function bogotaYmdFromDate(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
+function getVisitaYmd(c) {
+  const ymd = c?.fecha;
+  if (typeof ymd === "string" && /^\d{4}-\d{2}-\d{2}$/.test(ymd)) return ymd;
+  const fallback = bogotaYmdFromDate(c?.scheduledAt);
+  if (typeof fallback === "string" && /^\d{4}-\d{2}-\d{2}$/.test(fallback)) return fallback;
+  return "";
+}
+
+function ymLabel(ym) {
+  const [y, m] = String(ym).split("-").map((x) => Number(x));
+  if (!y || !m) return String(ym || "");
+  const d = new Date(y, m - 1, 1);
+  const label = d.toLocaleString("es-CO", { month: "long", year: "numeric" });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function ymShortLabel(ym) {
+  const [y, m] = String(ym).split("-").map((x) => Number(x));
+  if (!y || !m) return String(ym || "");
+  const d = new Date(y, m - 1, 1);
+  const s = d.toLocaleString("es-CO", { month: "short", year: "numeric" });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const CalIcon = () => (
@@ -89,19 +150,6 @@ function VisitDetailModal({ visit, onClose }) {
   if (!visit) return null;
   const [tasks, setTasks] = useState(visit.datosVisita?.tareasPendientes || []);
 
-  const toggleTask = (idx) => {
-    const updated = tasks.map((t, i) => i === idx ? { ...t, done: !t.done } : t);
-    setTasks(updated);
-    // Persist checkbox state
-    const allCitas = JSON.parse(localStorage.getItem("equielect_citas") || "[]");
-    const updatedCitas = allCitas.map(c =>
-      c.id === visit.id
-        ? { ...c, datosVisita: { ...c.datosVisita, tareasPendientes: updated } }
-        : c
-    );
-    localStorage.setItem("equielect_citas", JSON.stringify(updatedCitas));
-  };
-
   const fields = [
     { label: "Cliente/Empresa",  value: visit.datosVisita?.nombreEmpresa || visit.cliente },
     { label: "NIT",              value: visit.datosVisita?.nit            || "—" },
@@ -155,7 +203,8 @@ function VisitDetailModal({ visit, onClose }) {
                   <input
                     type="checkbox"
                     checked={!!t.done}
-                    onChange={() => toggleTask(i)}
+                    onChange={() => {}}
+                    disabled
                     className="mt-0.5 accent-[#1C355E] w-4 h-4 flex-shrink-0"
                   />
                   <span className={`text-sm font-medium ${t.done ? "line-through text-gray-400" : "text-gray-700"}`}>
@@ -175,36 +224,52 @@ function VisitDetailModal({ visit, onClose }) {
   );
 }
 
-// ── Candlestick-style chart (CSS only) ───────────────────────────────────────
-function CandlestickChart({ data }) {
-  const maxVal = Math.max(...data.map(d => d.total), 1);
+// ── Barras apiladas por mes (100% del alto = mes con más visitas) ────────────
+function MonthlyStackedBars({ rows, highlightYm }) {
+  const maxTotal = Math.max(1, ...rows.map((r) => r.total));
+  const trackH = 280;
   return (
-    <div className="flex items-end justify-between gap-2 h-32 px-1">
-      {data.map((d, i) => {
-        const heightPct  = (d.total / maxVal) * 100;
-        const donePct    = d.total > 0 ? (d.realizadas / d.total) * 100 : 0;
-        const pendPct    = d.total > 0 ? (d.pendientes  / d.total) * 100 : 0;
-        return (
-          <div key={i} className="flex-1 flex flex-col items-center gap-1.5 group">
-            <span className="text-[9px] font-black text-[#1C355E] opacity-0 group-hover:opacity-100 transition-opacity">{d.total}</span>
-            {/* Candle body */}
-            <div className="w-full relative flex flex-col justify-end rounded-sm overflow-hidden"
-              style={{ height: `${Math.max(heightPct, 4)}%`, minHeight: "4px" }}>
-              {/* Wick top */}
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-0.5 bg-[#1C355E]/30" style={{ height: "30%" }} />
-              {/* Body: realizadas (blue) on top, pendientes (yellow) on bottom */}
-              <div className="w-full rounded-sm overflow-hidden" style={{ height: "70%" }}>
-                <div className="bg-blue-400 w-full candle-in" style={{ height: `${donePct}%`, transition: "height 0.7s ease" }} />
-                <div className="bg-[#FFCD00] w-full" style={{ height: `${pendPct}%`, transition: "height 0.7s ease 0.1s" }} />
-                <div className="bg-emerald-400 w-full flex-1" style={{ height: `${Math.max(100 - donePct - pendPct, 0)}%` }} />
+    <div className="overflow-x-auto pb-2 -mx-1">
+      <div className="flex items-end gap-5 px-2 pt-2" style={{ minWidth: Math.max(rows.length * 72, 320) }}>
+        {rows.length === 0 ? (
+          <p className="text-sm text-gray-400 py-20 w-full text-center">No hay visitas con fecha para mostrar el histórico.</p>
+        ) : (
+          rows.map((row) => {
+            const barH = Math.max(32, (row.total / maxTotal) * trackH);
+            const segs = [
+              { key: "realizadas", n: row.realizadas, color: "#60a5fa" },
+              { key: "pendientes", n: row.pendientes, color: "#facc15" },
+              { key: "activas", n: row.activas, color: "#34d399" },
+              { key: "reprogramadas", n: row.reprogramadas, color: "#c4b5fd" },
+            ].filter((s) => s.n > 0);
+            const hi = highlightYm && row.ym === highlightYm;
+            return (
+              <div key={row.ym} className="flex flex-col items-center gap-2 flex-1 min-w-[64px] max-w-[96px]">
+                <span className="text-xs font-black text-[#1C355E] tabular-nums leading-none">{row.total}</span>
+                <div
+                  className={`w-full flex flex-col justify-end rounded-2xl bg-gray-100/90 border border-gray-100 ${
+                    hi ? "ring-2 ring-[#1C355E] ring-offset-2 shadow-md" : ""
+                  }`}
+                  style={{ height: trackH }}
+                >
+                  <div className="flex flex-col w-full overflow-hidden rounded-2xl" style={{ height: barH }}>
+                    {segs.map((s) => (
+                      <div
+                        key={s.key}
+                        className="w-full min-h-[4px] transition-[flex] duration-500 ease-out"
+                        style={{ backgroundColor: s.color, flex: s.n }}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <span className="text-[10px] text-[#98989A] font-bold text-center leading-tight px-0.5">
+                  {ymShortLabel(row.ym)}
+                </span>
               </div>
-              {/* Wick bottom */}
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0.5 bg-[#1C355E]/20" style={{ height: "15%" }} />
-            </div>
-            <span className="text-[9px] text-[#98989A] font-medium">{d.mes}</span>
-          </div>
-        );
-      })}
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }
@@ -263,28 +328,46 @@ export default function AsesorDashboard() {
   const [allCitas, setAllCitas] = useState([]);
   const [activeTab, setActiveTab] = useState("todas");
   const [selectedVisit, setSelectedVisit] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState("");
 
   useEffect(() => {
     const stored = localStorage.getItem("user");
     if (stored) setUser(JSON.parse(stored));
-    const storedCitas = localStorage.getItem("equielect_citas");
-    if (storedCitas) setAllCitas(JSON.parse(storedCitas));
   }, []);
 
-  // Reload when visiting the page after changes
   useEffect(() => {
-    const refresh = () => {
-      const storedCitas = localStorage.getItem("equielect_citas");
-      if (storedCitas) setAllCitas(JSON.parse(storedCitas));
+    let mounted = true;
+
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError("");
+        const v = await fetchVisitas();
+        if (!mounted) return;
+        setAllCitas(v);
+        const months = [...new Set(v.map((c) => ymdToYearMonth(getVisitaYmd(c))).filter(Boolean))].sort().reverse();
+        setSelectedMonth((prev) => prev || months[0] || "");
+      } catch (e) {
+        if (mounted) setError(e?.message || "No se pudieron cargar las visitas.");
+      } finally {
+        if (mounted) setLoading(false);
+      }
     };
-    window.addEventListener("focus", refresh);
-    return () => window.removeEventListener("focus", refresh);
+
+    load();
+
+    const onUpd = () => load();
+    window.addEventListener("visitas-updated", onUpd);
+    return () => {
+      mounted = false;
+      window.removeEventListener("visitas-updated", onUpd);
+    };
   }, []);
 
   // SOLO las citas de este asesor
-  const myCitas = allCitas.filter(
-    (c) => c.asesorId === user?.id || c.asesorNombre === user?.nombre
-  );
+  const myCitas = allCitas;
 
   const tabs = ["todas", "activa", "pendiente", "realizada", "reprogramada"];
   const filtered = activeTab === "todas" ? myCitas : myCitas.filter(c => c.estado === activeTab);
@@ -298,41 +381,80 @@ export default function AsesorDashboard() {
     reprogramadas:myCitas.filter(c => c.estado === "reprogramada").length,
   };
 
-  // Build monthly candlestick data (last 6 months)
-  const monthlyData = (() => {
-    const now   = new Date();
-    const result = [];
-    for (let i = 5; i >= 0; i--) {
-      const d     = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const yyyy  = d.getFullYear();
-      const mm    = d.getMonth();
-      const label = d.toLocaleString("es-CO", { month: "short" });
-      const monthCitas = myCitas.filter(c => {
-        if (!c.fecha) return false;
-        const cd = new Date(c.fecha);
-        return cd.getFullYear() === yyyy && cd.getMonth() === mm;
-      });
-      result.push({
-        mes:         label.charAt(0).toUpperCase() + label.slice(1),
-        total:       monthCitas.length,
-        realizadas:  monthCitas.filter(c => c.estado === "realizada").length,
-        pendientes:  monthCitas.filter(c => c.estado === "pendiente").length,
-        activas:     monthCitas.filter(c => c.estado === "activa").length,
-      });
+  const months = useMemo(() => {
+    return [...new Set(myCitas.map((c) => ymdToYearMonth(getVisitaYmd(c))).filter(Boolean))].sort().reverse();
+  }, [myCitas]);
+
+  const monthlyBarsData = useMemo(() => {
+    const map = new Map();
+    for (const c of myCitas) {
+      const ym = ymdToYearMonth(getVisitaYmd(c));
+      if (!ym) continue;
+      if (!map.has(ym)) {
+        map.set(ym, { ym, total: 0, realizadas: 0, pendientes: 0, activas: 0, reprogramadas: 0 });
+      }
+      const r = map.get(ym);
+      r.total += 1;
+      if (c.estado === "realizada") r.realizadas += 1;
+      else if (c.estado === "pendiente") r.pendientes += 1;
+      else if (c.estado === "activa") r.activas += 1;
+      else if (c.estado === "reprogramada") r.reprogramadas += 1;
     }
-    return result;
-  })();
+    return [...map.values()].sort((a, b) => a.ym.localeCompare(b.ym));
+  }, [myCitas]);
+
+  const monthCitas = useMemo(() => {
+    if (!selectedMonth) return [];
+    return myCitas.filter((c) => ymdToYearMonth(getVisitaYmd(c)) === selectedMonth);
+  }, [myCitas, selectedMonth]);
+
+  const prevMonth = useMemo(() => {
+    if (!selectedMonth) return "";
+    const [y, m] = selectedMonth.split("-").map((x) => Number(x));
+    if (!y || !m) return "";
+    const d = new Date(y, m - 2, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }, [selectedMonth]);
+
+  const prevMonthCitas = useMemo(() => {
+    if (!prevMonth) return [];
+    return myCitas.filter((c) => ymdToYearMonth(getVisitaYmd(c)) === prevMonth);
+  }, [myCitas, prevMonth]);
+
+  const monthStats = useMemo(() => {
+    const base = monthCitas;
+    return {
+      total: base.length,
+      realizadas: base.filter((c) => c.estado === "realizada").length,
+      pendientes: base.filter((c) => c.estado === "pendiente").length,
+      activas: base.filter((c) => c.estado === "activa").length,
+      reprogramadas: base.filter((c) => c.estado === "reprogramada").length,
+    };
+  }, [monthCitas]);
+
+  const monthlyGoal = 10;
+  const cumplimientoPct = monthlyGoal > 0 ? (monthStats.realizadas / monthlyGoal) * 100 : 0;
+  const cumplimientoPctLabel = Number.isFinite(cumplimientoPct) ? Math.round(cumplimientoPct) : 0;
+
+  const prevMonthTotal = prevMonthCitas.length;
+  const trendVsPrev = prevMonthTotal > 0 ? Math.round(((monthStats.total - prevMonthTotal) / prevMonthTotal) * 100) : undefined;
 
   // Donut segments
   const donutSegments = [
-    { label: "Realizadas",    value: stats.realizadas,    color: "#3B82F6" },
-    { label: "Activas",       value: stats.activas,       color: "#10B981" },
-    { label: "Pendientes",    value: stats.pendientes,    color: "#FFCD00" },
-    { label: "Reprogramadas", value: stats.reprogramadas, color: "#A78BFA" },
+    { label: "Realizadas",    value: monthStats.realizadas,    color: "#3B82F6" },
+    { label: "Activas",       value: monthStats.activas,       color: "#10B981" },
+    { label: "Pendientes",    value: monthStats.pendientes,    color: "#FFCD00" },
+    { label: "Reprogramadas", value: monthStats.reprogramadas, color: "#A78BFA" },
   ].filter(s => s.value > 0);
 
-  const completionRate = stats.total > 0
-    ? Math.round((stats.realizadas / stats.total) * 100)
+  const donutTotal = donutSegments.reduce((s, d) => s + d.value, 0);
+  const donutLegend = donutSegments.map((s) => {
+    const pct = donutTotal > 0 ? Math.round((s.value / donutTotal) * 100) : 0;
+    return { ...s, pct };
+  });
+
+  const completionRate = monthStats.total > 0
+    ? Math.round((monthStats.realizadas / monthStats.total) * 100)
     : 0;
 
   return (
@@ -350,6 +472,11 @@ export default function AsesorDashboard() {
       {selectedVisit && <VisitDetailModal visit={selectedVisit} onClose={() => setSelectedVisit(null)} />}
 
       <main className="flex-1 bg-[#F4F6FA] p-6 md:p-8 min-h-screen">
+        {error && (
+          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700 font-semibold">
+            {error}
+          </div>
+        )}
 
         {/* Title */}
         <div className="fade-up fade-up-1 mb-7 flex items-center justify-between">
@@ -364,22 +491,52 @@ export default function AsesorDashboard() {
           </div>
         </div>
 
+        <div className="fade-up fade-up-1 mb-7 flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-[#98989A] uppercase tracking-widest">Mes</span>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="text-sm font-bold text-[#1C355E] bg-white border border-gray-200 rounded-xl px-3 py-2 outline-none"
+              disabled={loading}
+            >
+              {months.length === 0 ? <option value={selectedMonth}>{ymLabel(selectedMonth)}</option> : null}
+              {months.map((m) => (
+                <option key={m} value={m}>
+                  {ymLabel(m)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="text-xs text-[#98989A] font-medium bg-white border border-gray-200 px-3 py-2 rounded-xl shadow-sm">
+            Objetivo: <span className="font-black text-[#1C355E]">{monthlyGoal}</span> visitas finalizadas · Cumplimiento{" "}
+            <span className="font-black text-[#1C355E]">{cumplimientoPctLabel}%</span>
+          </div>
+        </div>
+
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-7">
           <div className="fade-up fade-up-1">
-            <StatCard icon={<CalIcon />}      label="Mis Citas"      value={stats.total}
-              sub="en total"    accent="bg-[#1C355E]" />
+            <StatCard
+              icon={<CheckIcon />}
+              label="Cumplimiento (finalizadas)"
+              value={`${cumplimientoPctLabel}%`}
+              sub={`${monthStats.realizadas} / ${monthlyGoal} realizadas`}
+              accent="bg-emerald-400"
+              trend={trendVsPrev}
+            />
           </div>
           <div className="fade-up fade-up-2">
-            <StatCard icon={<CheckIcon />}    label="Realizadas"     value={stats.realizadas}
-              sub={`${completionRate}% completadas`} accent="bg-blue-400" />
+            <StatCard icon={<CalIcon />}      label="Citas (mes)"      value={monthStats.total}
+              sub="todas"    accent="bg-[#1C355E]" />
           </div>
           <div className="fade-up fade-up-3">
-            <StatCard icon={<ClockIcon />}    label="Pendientes"     value={stats.pendientes}
+            <StatCard icon={<ClockIcon />}    label="Pendientes (mes)"     value={monthStats.pendientes}
               sub="por atender"  accent="bg-[#FFCD00]" />
           </div>
           <div className="fade-up fade-up-4">
-            <StatCard icon={<ActivityIcon />} label="Activas ahora"  value={stats.activas}
+            <StatCard icon={<ActivityIcon />} label="Activas (mes)"  value={monthStats.activas}
               sub="en curso"     accent="bg-emerald-400" />
           </div>
         </div>
@@ -387,25 +544,34 @@ export default function AsesorDashboard() {
         {/* Charts row */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-7">
 
-          {/* Candlestick chart */}
+          {/* Barras por mes */}
           <div className="fade-up fade-up-3 lg:col-span-3 bg-white rounded-2xl p-6 border border-gray-100 shadow-[0_2px_16px_-4px_rgba(28,53,94,0.08)]">
             <div className="flex items-center justify-between mb-2">
               <div>
                 <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest">Mis visitas</p>
-                <p className="text-lg font-black text-[#1C355E] mt-0.5">Últimos 6 meses</p>
+                <p className="text-lg font-black text-[#1C355E] mt-0.5">Histórico por mes</p>
+                <p className="text-[11px] text-[#98989A] mt-1">
+                  Cada barra es un mes con datos; el anillo indica el mes seleccionado arriba ({ymLabel(selectedMonth) || "—"}).
+                </p>
               </div>
-              <span className="text-[11px] font-semibold text-[#1C355E] bg-[#1C355E]/6 px-3 py-1 rounded-full">Velas</span>
+              <span className="text-[11px] font-semibold text-[#1C355E] bg-[#1C355E]/6 px-3 py-1 rounded-full shrink-0">
+                {loading ? "Cargando…" : `${monthlyBarsData.length} mes(es)`}
+              </span>
             </div>
-            {/* Legend */}
-            <div className="flex items-center gap-4 mb-4">
-              {[{ color:"bg-blue-400", label:"Realizadas" }, { color:"bg-[#FFCD00]", label:"Pendientes" }, { color:"bg-emerald-400", label:"Activas" }].map(l => (
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mb-5">
+              {[
+                { color: "bg-blue-400", label: "Realizadas" },
+                { color: "bg-[#FFCD00]", label: "Pendientes" },
+                { color: "bg-emerald-400", label: "Activas" },
+                { color: "bg-purple-300", label: "Reprogramadas" },
+              ].map((l) => (
                 <div key={l.label} className="flex items-center gap-1.5">
                   <span className={`w-2.5 h-2.5 rounded-sm ${l.color}`} />
                   <span className="text-[10px] text-gray-400 font-medium">{l.label}</span>
                 </div>
               ))}
             </div>
-            <CandlestickChart data={monthlyData} />
+            <MonthlyStackedBars rows={monthlyBarsData} highlightYm={selectedMonth} />
           </div>
 
           {/* Donut chart */}
@@ -416,18 +582,18 @@ export default function AsesorDashboard() {
               <DonutChart segments={donutSegments} size={130} />
             </div>
             <div className="space-y-2">
-              {[
-                { label: "Realizadas",    value: stats.realizadas,    color: "bg-blue-400"    },
-                { label: "Activas",       value: stats.activas,       color: "bg-emerald-400" },
-                { label: "Pendientes",    value: stats.pendientes,    color: "bg-[#FFCD00]"  },
-                { label: "Reprogramadas", value: stats.reprogramadas, color: "bg-purple-400"  },
-              ].map(item => (
+              {donutLegend.map((item) => (
                 <div key={item.label} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className={`w-2.5 h-2.5 rounded-full ${item.color}`} />
+                    <span
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ backgroundColor: item.color }}
+                    />
                     <span className="text-xs font-medium text-gray-500">{item.label}</span>
                   </div>
-                  <span className="text-xs font-black text-[#1C355E]">{item.value}</span>
+                  <span className="text-xs font-black text-[#1C355E]">
+                    {item.pct}% <span className="text-[#98989A] font-semibold">({item.value})</span>
+                  </span>
                 </div>
               ))}
             </div>

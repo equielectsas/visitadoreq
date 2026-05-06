@@ -4,46 +4,83 @@ export const roleMenus = {
       section: "Principal",
       name: "Inicio",
       icon: "dashboard",
-      path: "/dashboard/programador",
+      path: "/dashboard/admin",
     },
     {
       section: "Gestión",
       name: "Clientes",
       icon: "users",
-      path: "/dashboard/programador/clientes",
+      path: "/dashboard/admin/clientes",
     },
     {
       section: "Gestión",
       name: "Tareas Pendientes",
       icon: "steps",
-      path: "/dashboard/programador/tareas",
+      path: "/dashboard/admin/tareas",
     },
     {
       section: "Gestión",
       name: "Usuarios",
       icon: "users",
-      path: "/dashboard/programador/usuarios",
+      path: "/dashboard/admin/usuarios",
     },
     {
       section: "Gestión",
       name: "Contactos",
       icon: "contact",
-      path: "/dashboard/programador/contactos",
+      path: "/dashboard/admin/contactos",
     },
     {
       section: "Análisis",
       name: "Reportes",
       icon: "report",
-      path: "/dashboard/programador/reportes",
+      path: "/dashboard/admin/reportes",
     },
     {
       section: "Análisis",
-      name: "Calendario",
-      icon: "calendar",
-      path: "/dashboard/programador/calendario",
+      name: "Chequeo vehículo",
+      icon: "vehiculo",
+      path: "/dashboard/admin/chequeo-vehiculo",
     },
   ],
-
+  adminComercial: [
+    {
+      section: "Principal",
+      name: "Inicio",
+      icon: "dashboard",
+      path: "/dashboard/admin",
+    },
+    {
+      section: "Gestión",
+      name: "Clientes",
+      icon: "users",
+      path: "/dashboard/admin/clientes",
+    },
+    {
+      section: "Gestión",
+      name: "Usuarios",
+      icon: "users",
+      path: "/dashboard/admin/usuarios",
+    },
+    {
+      section: "Gestión",
+      name: "Contactos",
+      icon: "contact",
+      path: "/dashboard/admin/contactos",
+    },
+    {
+      section: "Análisis",
+      name: "Reportes",
+      icon: "report",
+      path: "/dashboard/admin/reportes",
+    },
+    {
+      section: "Análisis",
+      name: "Chequeo vehículo",
+      icon: "vehiculo",
+      path: "/dashboard/admin/chequeo-vehiculo",
+    },
+  ],
   comercial: [
     {
       section: "Principal",
@@ -56,6 +93,12 @@ export const roleMenus = {
       name: "Crear visita",
       icon: "Visita",
       path: "/dashboard/asesor",
+    },
+    {
+      section: "Principal",
+      name: "Chequeo vehículo",
+      icon: "vehiculo",
+      path: "/dashboard/asesor/chequeo-vehiculo",
     },
     {
       section: "Gestión",
@@ -75,13 +118,5 @@ export const roleMenus = {
       icon: "report",
       path: "/dashboard/asesor/reportes",
     },
-    {
-      section: "Análisis",
-      name: "Calendario",
-      icon: "calendar",
-      path: "/dashboard/asesor/calendario",
-    },
   ],
 };
-// adminComercial usa exactamente el mismo menú que adminPlataforma
-roleMenus.adminComercial = roleMenus.adminPlataforma;

@@ -1,8 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 import LayoutDashboard from "@/components/LayoutDashboard";
 import { MUNICIPIOS_COLOMBIA } from "@/utils/municipiosColombia";
+import { chequeoCumpleParaCerrarVisita } from "@/utils/chequeoVehiculoStorage";
+
+function notifyVisitasUpdated() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event("visitas-updated"));
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ICONS
@@ -90,14 +97,14 @@ const SaveIcon = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
   </svg>
 );
-const ExternalLinkIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-  </svg>
-);
 const UserCircleIcon = () => (
   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
+const PencilIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
   </svg>
 );
 
@@ -118,7 +125,20 @@ const ESTADO_CONFIG = {
   reprogramada: { label: "Reprogramada", cls: "bg-purple-100 text-purple-700"   },
 };
 
-const VALIDACION_VEH_URL = "https://www.runt.com.co/";
+function normalizarNombreEmpresa(s) {
+  return (s || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** Contacto guardado con empresaId / empresaNombre o solo empresa (legado). */
+function contactoPerteneceAEmpresa(c, empresaId, nombreEmpresa) {
+  const ne = normalizarNombreEmpresa(nombreEmpresa);
+  if (empresaId && c?.empresaId != null && String(c.empresaId) === String(empresaId)) return true;
+  if (ne) {
+    if (normalizarNombreEmpresa(c.empresaNombre) === ne) return true;
+    if (normalizarNombreEmpresa(c.empresa) === ne) return true;
+  }
+  return false;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PEQUEÑOS HELPERS UI
@@ -135,30 +155,42 @@ function Modal({ show, onClose, children, wide = false }) {
   );
 }
 
-function InputField({ label, required, ...props }) {
+function InputField({ label, required, fieldValid, className = "", ...props }) {
+  const border =
+    fieldValid === true
+      ? "border-emerald-400 bg-emerald-50/70"
+      : fieldValid === false
+        ? "border-red-400 bg-red-50/50"
+        : "border-gray-200 bg-gray-50";
   return (
     <div className="flex flex-col gap-1">
       <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
         {label}{required && <span className="text-red-400 ml-1">*</span>}
       </label>
       <input
-        className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800
-          focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all"
+        className={`w-full px-4 py-3 rounded-xl border text-sm font-medium text-gray-800
+          focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all ${border} ${className}`}
         {...props}
       />
     </div>
   );
 }
 
-function SelectField({ label, options, required, ...props }) {
+function SelectField({ label, options, required, fieldValid, className = "", ...props }) {
+  const border =
+    fieldValid === true
+      ? "border-emerald-400 bg-emerald-50/70"
+      : fieldValid === false
+        ? "border-red-400 bg-red-50/50"
+        : "border-gray-200 bg-gray-50";
   return (
     <div className="flex flex-col gap-1">
       <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
         {label}{required && <span className="text-red-400 ml-1">*</span>}
       </label>
       <select
-        className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800
-          focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all"
+        className={`w-full px-4 py-3 rounded-xl border text-sm font-medium text-gray-800
+          focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all ${border} ${className}`}
         {...props}
       >
         <option value="">Seleccionar...</option>
@@ -200,75 +232,153 @@ function SectionHeader({ number, title }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MODAL CREAR CONTACTO
+// MODAL CREAR CONTACTO (vinculado a empresa + datos extendidos)
 // ─────────────────────────────────────────────────────────────────────────────
-function CrearContactoModal({ show, onClose, onCreated, empresaPredeterminada }) {
-  const hoy = new Date().toISOString().split("T")[0];
+function CrearContactoModal({ show, onClose, onCreated, empresaVinculo, nombreInicial = "" }) {
+  const empNombre = (empresaVinculo?.nombre || "").trim();
+  const empId = empresaVinculo?._id || "";
   const [form, setForm] = useState({
     nombre: "",
     cargo: "",
-    empresa: empresaPredeterminada || "",
-    fechaCreacion: hoy,
+    telefono: "",
+    correo: "",
+    profesion: "",
+    fechaCreacion: "",
   });
   const [saving, setSaving] = useState(false);
-  const [done, setDone]     = useState(false);
+  const [done, setDone] = useState(false);
+  const [formError, setFormError] = useState("");
 
   useEffect(() => {
     if (show) {
-      setForm({ nombre: "", cargo: "", empresa: empresaPredeterminada || "", fechaCreacion: hoy });
+      const hoyStr = new Date().toISOString().split("T")[0];
+      setForm({
+        nombre: (nombreInicial || "").trim(),
+        cargo: "",
+        telefono: "",
+        correo: "",
+        profesion: "",
+        fechaCreacion: hoyStr,
+      });
       setDone(false);
+      setFormError("");
     }
-  }, [show, empresaPredeterminada]);
+  }, [show, nombreInicial]);
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const handleSave = () => {
-    if (!form.nombre.trim() || !form.cargo.trim()) return;
+    if (!empNombre) {
+      setFormError("Primero elige la empresa de la visita.");
+      return;
+    }
+    if (!form.nombre.trim() || !form.cargo.trim() || !form.telefono.trim() || !form.correo.trim() || !form.profesion.trim()) {
+      setFormError("Completa todos los campos obligatorios.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo.trim())) {
+      setFormError("Ingresa un correo electrónico válido.");
+      return;
+    }
+    setFormError("");
     setSaving(true);
-    const nuevo = { ...form, id: Date.now() };
-    // Persistir en localStorage
-    const stored = JSON.parse(localStorage.getItem("equielect_contactos") || "[]");
-    localStorage.setItem("equielect_contactos", JSON.stringify([...stored, nuevo]));
-    setSaving(false);
-    setDone(true);
-    setTimeout(() => {
-      onCreated(nuevo);
-      onClose();
-    }, 900);
+    const hoyStr = form.fechaCreacion || new Date().toISOString().split("T")[0];
+    const nuevo = {
+      id: Date.now(),
+      nombre: form.nombre.trim(),
+      cargo: form.cargo.trim(),
+      telefono: form.telefono.trim(),
+      correo: form.correo.trim(),
+      profesion: form.profesion.trim(),
+      empresa: empNombre,
+      empresaNombre: empNombre,
+      empresaId: empId || null,
+      fechaCreacion: hoyStr,
+    };
+    (async () => {
+      try {
+        const token = (() => {
+          try {
+            const u = JSON.parse(localStorage.getItem("user") || "null");
+            return u?.token || localStorage.getItem("token");
+          } catch {
+            return localStorage.getItem("token");
+          }
+        })();
+        const base = process.env.NEXT_PUBLIC_API_URL || "";
+        const res = await fetch(`${base.replace(/\/$/, "")}/clientes/${empId}/contactos`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: token },
+          body: JSON.stringify({
+            nombre: nuevo.nombre,
+            cargo: nuevo.cargo,
+            telefono: nuevo.telefono,
+            email: nuevo.correo,
+            notas: nuevo.profesion, // mientras backend no tenga profesion, lo mandamos en notas
+            profesion: nuevo.profesion, // si se agrega al backend, ya queda
+          }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json?.message || "No se pudo guardar el contacto");
+        const createdList = Array.isArray(json?.contactos) ? json.contactos : [];
+        const match = [...createdList].reverse().find(
+          (c) =>
+            String(c?.nombre || "").trim() === nuevo.nombre &&
+            String(c?.telefono || "").trim() === nuevo.telefono
+        );
+        const last = match || createdList[createdList.length - 1];
+        setSaving(false);
+        setDone(true);
+        setTimeout(() => {
+          onCreated({ ...nuevo, _id: last?._id || null, id: last?._id || null });
+          onClose();
+        }, 900);
+      } catch (e) {
+        setSaving(false);
+        setFormError(e.message || "No se pudo guardar el contacto");
+      }
+    })();
   };
 
-  const canSave = form.nombre.trim() && form.cargo.trim();
+  const canSave =
+    empNombre &&
+    form.nombre.trim() &&
+    form.cargo.trim() &&
+    form.telefono.trim() &&
+    form.correo.trim() &&
+    form.profesion.trim();
 
   if (!show) return null;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+      <div className="relative z-10 bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto">
 
-        {/* Header */}
-        <div className="bg-gradient-to-br from-[#1C355E] to-[#16294d] px-6 py-5 flex items-center justify-between">
+        <div className="bg-gradient-to-br from-[#1C355E] to-[#16294d] px-6 py-5 flex items-center justify-between sticky top-0 z-[1]">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
               <UserCircleIcon />
             </div>
             <div>
-              <p className="text-white font-black text-base leading-tight">Nuevo Contacto</p>
-              <p className="text-white/50 text-[10px] font-semibold uppercase tracking-wider mt-0.5">Agregar a la base de datos</p>
+              <p className="text-white font-black text-base leading-tight">Nuevo contacto</p>
+              <p className="text-white/50 text-[10px] font-semibold uppercase tracking-wider mt-0.5">Vinculado a la empresa de la visita</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
-          >
+          <button type="button" onClick={onClose} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
             <CloseIcon />
           </button>
         </div>
 
         {!done ? (
           <div className="p-6 space-y-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Empresa vinculada</label>
+              <div className="w-full px-4 py-3 rounded-xl border border-emerald-200 bg-emerald-50/80 text-sm font-semibold text-emerald-800">
+                {empNombre || "— (elige empresa arriba en el detalle de visita)"}
+              </div>
+            </div>
 
-            {/* Nombre */}
             <div className="flex flex-col gap-1.5">
               <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
                 Nombre completo <span className="text-red-400">*</span>
@@ -277,67 +387,88 @@ function CrearContactoModal({ show, onClose, onCreated, empresaPredeterminada })
                 type="text"
                 placeholder="Ej: Carlos Ramírez Pérez"
                 value={form.nombre}
-                onChange={e => set("nombre", e.target.value)}
+                onChange={(e) => set("nombre", e.target.value)}
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800
                   focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all"
               />
             </div>
 
-            {/* Cargo */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                Cargo en la empresa <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="text"
-                placeholder="Ej: Gerente, Jefe de compras..."
-                value={form.cargo}
-                onChange={e => set("cargo", e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800
-                  focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                  Cargo <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: Jefe de compras"
+                  value={form.cargo}
+                  onChange={(e) => set("cargo", e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800
+                    focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                  Profesión <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: Ingeniero industrial"
+                  value={form.profesion}
+                  onChange={(e) => set("profesion", e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800
+                    focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all"
+                />
+              </div>
             </div>
 
-            {/* Empresa — pre-poblada, editable */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                Empresa
-              </label>
-              <input
-                type="text"
-                placeholder="Nombre de la empresa"
-                value={form.empresa}
-                onChange={e => set("empresa", e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800
-                  focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all"
-              />
-              {empresaPredeterminada && (
-                <p className="text-[10px] text-emerald-600 font-semibold pl-1">
-                  ✓ Pre-cargada desde la empresa seleccionada
-                </p>
-              )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                  Teléfono <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="tel"
+                  placeholder="Ej: 3001234567"
+                  value={form.telefono}
+                  onChange={(e) => set("telefono", e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800
+                    focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                  Correo <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="email"
+                  placeholder="correo@empresa.com"
+                  value={form.correo}
+                  onChange={(e) => set("correo", e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800
+                    focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all"
+                />
+              </div>
             </div>
 
-            {/* Fecha de creación — readonly */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                Fecha de creación
-              </label>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Fecha de registro</label>
               <div className="w-full px-4 py-3 rounded-xl border border-dashed border-gray-200 bg-gray-50/80 text-sm font-medium text-gray-400 flex items-center gap-2">
                 <CalIcon />
                 {new Date().toLocaleDateString("es-CO", { day: "2-digit", month: "long", year: "numeric" })}
               </div>
             </div>
 
-            {/* Botones */}
+            {formError && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs font-semibold text-red-600">{formError}</div>
+            )}
+
             <div className="flex gap-3 pt-1">
-              <button
-                onClick={onClose}
-                className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-500 hover:bg-gray-50 transition-all"
-              >
+              <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-500 hover:bg-gray-50 transition-all">
                 Cancelar
               </button>
               <button
+                type="button"
                 onClick={handleSave}
                 disabled={!canSave || saving}
                 className="flex-1 py-3 rounded-xl bg-[#1C355E] text-white font-bold text-sm
@@ -355,14 +486,13 @@ function CrearContactoModal({ show, onClose, onCreated, empresaPredeterminada })
             </div>
           </div>
         ) : (
-          /* Éxito */
           <div className="p-8 text-center space-y-4">
             <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto text-emerald-600">
               <CheckCircleIcon />
             </div>
             <div>
               <p className="font-black text-gray-800 text-lg">¡Contacto creado!</p>
-              <p className="text-sm text-gray-400 mt-1">{form.nombre} fue agregado</p>
+              <p className="text-sm text-gray-400 mt-1">{form.nombre} quedó vinculado a {empNombre}</p>
             </div>
           </div>
         )}
@@ -372,28 +502,299 @@ function CrearContactoModal({ show, onClose, onCreated, empresaPredeterminada })
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// BUSCADOR DE CONTACTO — reemplaza los 2 campos manuales de encargado
+// MODAL EDITAR CONTACTO
 // ─────────────────────────────────────────────────────────────────────────────
-function ContactoSearch({ onSelect, empresaNombre, onOpenCrear }) {
-  const [query, setQuery]       = useState("");
-  const [results, setResults]   = useState([]);
-  const [open, setOpen]         = useState(false);
+function EditarContactoModal({ show, onClose, contacto, empresaVinculo, onSaved }) {
+  const empNombre = (empresaVinculo?.nombre || "").trim();
+  const empId = empresaVinculo?._id || "";
+  const [form, setForm] = useState({
+    nombre: "",
+    cargo: "",
+    telefono: "",
+    correo: "",
+    profesion: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  useEffect(() => {
+    if (show && contacto) {
+      setForm({
+        nombre: contacto.nombre || "",
+        cargo: contacto.cargo || "",
+        telefono: contacto.telefono || "",
+        correo: contacto.correo || contacto.email || "",
+        profesion: contacto.profesion || "",
+      });
+      setFormError("");
+    }
+  }, [show, contacto]);
+
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const handleSave = () => {
+    if (!contacto?._id) return;
+    if (!form.nombre.trim() || !form.cargo.trim() || !form.telefono.trim() || !form.correo.trim() || !form.profesion.trim()) {
+      setFormError("Completa todos los campos obligatorios.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo.trim())) {
+      setFormError("Ingresa un correo electrónico válido.");
+      return;
+    }
+    if (!empNombre) {
+      setFormError("La empresa de la visita es obligatoria para mantener el vínculo.");
+      return;
+    }
+    setFormError("");
+    setSaving(true);
+    const token = (() => {
+      try {
+        const u = JSON.parse(localStorage.getItem("user") || "null");
+        return u?.token || localStorage.getItem("token");
+      } catch {
+        return localStorage.getItem("token");
+      }
+    })();
+    (async () => {
+      try {
+        const base = process.env.NEXT_PUBLIC_API_URL || "";
+        const res = await fetch(`${base.replace(/\/$/, "")}/clientes/${empId}/contactos/${contacto._id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: token },
+          body: JSON.stringify({
+            nombre: form.nombre.trim(),
+            cargo: form.cargo.trim(),
+            telefono: form.telefono.trim(),
+            email: form.correo.trim(),
+            notas: form.profesion.trim(),
+            profesion: form.profesion.trim(),
+          }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json?.message || "No se pudo actualizar");
+        setSaving(false);
+        // backend devuelve lista completa
+        const list = Array.isArray(json?.contactos) ? json.contactos : [];
+        const updated = list.find((c) => String(c._id) === String(contacto._id)) || null;
+        onSaved({ ...contacto, ...updated, profesion: form.profesion.trim(), correo: form.correo.trim() });
+        onClose();
+      } catch (e) {
+        setSaving(false);
+        setFormError(e.message || "No se pudo actualizar");
+      }
+    })();
+  };
+
+  const canSave =
+    empNombre &&
+    form.nombre.trim() &&
+    form.cargo.trim() &&
+    form.telefono.trim() &&
+    form.correo.trim() &&
+    form.profesion.trim();
+
+  if (!show || !contacto) return null;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto">
+        <div className="bg-gradient-to-br from-[#1C355E] to-[#16294d] px-6 py-5 flex items-center justify-between sticky top-0 z-[1]">
+          <div>
+            <p className="text-white font-black text-base leading-tight">Editar contacto</p>
+            <p className="text-white/50 text-[10px] font-semibold uppercase tracking-wider mt-0.5">{empNombre}</p>
+          </div>
+          <button type="button" onClick={onClose} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center">
+            <CloseIcon />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+              Nombre completo <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={form.nombre}
+              onChange={(e) => set("nombre", e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800
+                focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                Cargo <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={form.cargo}
+                onChange={(e) => set("cargo", e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800
+                  focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                Profesión <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={form.profesion}
+                onChange={(e) => set("profesion", e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800
+                  focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                Teléfono <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="tel"
+                value={form.telefono}
+                onChange={(e) => set("telefono", e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800
+                  focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                Correo <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="email"
+                value={form.correo}
+                onChange={(e) => set("correo", e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800
+                  focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all"
+              />
+            </div>
+          </div>
+
+          {formError && (
+            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs font-semibold text-red-600">{formError}</div>
+          )}
+
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-500 hover:bg-gray-50">
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={!canSave || saving}
+              className="flex-1 py-3 rounded-xl bg-[#1C355E] text-white font-bold text-sm hover:bg-[#16294d] disabled:opacity-40 flex items-center justify-center gap-2"
+            >
+              {saving ? <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> : <><SaveIcon /> Guardar</>}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BUSCADOR DE CONTACTO — prioriza contactos vinculados a la empresa de la visita
+// ─────────────────────────────────────────────────────────────────────────────
+function ContactoSearch({
+  onSelect,
+  empresaId,
+  empresaNombre,
+  empresaContextKey,
+  onOpenCrear,
+  onOpenEditar,
+  defaultQuery = "",
+  selectedContactoId = "",
+  fieldValid,
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
   const [contactos, setContactos] = useState([]);
   const [selected, setSelected] = useState(null);
   const ref = useRef(null);
+  const prevEmpresaKey = useRef(null);
 
-  // Cargar contactos desde localStorage
-  const loadContactos = () => {
-    const stored = JSON.parse(localStorage.getItem("equielect_contactos") || "[]");
-    setContactos(stored);
+  const normalizeContacto = (c) =>
+    c && typeof c === "object"
+      ? { ...c, correo: c.correo ?? c.email ?? "" }
+      : c;
+
+  // Sincronizar el texto con el valor actual del formulario (incluye limpiar al borrar)
+  useEffect(() => {
+    setQuery(defaultQuery ?? "");
+  }, [defaultQuery]);
+
+  const loadContactos = async (qOverride = null) => {
+    try {
+      const token = (() => {
+        try {
+          const u = JSON.parse(localStorage.getItem("user") || "null");
+          return u?.token || localStorage.getItem("token");
+        } catch {
+          return localStorage.getItem("token");
+        }
+      })();
+      if (!empresaId) { setContactos([]); return; }
+      const base = process.env.NEXT_PUBLIC_API_URL || "";
+      const res = await fetch(`${base.replace(/\/$/, "")}/clientes/${empresaId}/contactos`, {
+        headers: { Authorization: token },
+      });
+      const json = await res.json().catch(() => ({}));
+      const raw = Array.isArray(json?.contactos) ? json.contactos : [];
+      const list = raw.map(normalizeContacto);
+      const qVal = (qOverride != null ? qOverride : query || "").trim().toLowerCase();
+      const filtered = !qVal
+        ? list
+        : list.filter((c) =>
+            (c.nombre || "").toLowerCase().includes(qVal) ||
+            (c.cargo || "").toLowerCase().includes(qVal) ||
+            (c.telefono || "").toLowerCase().includes(qVal) ||
+            (c.email || "").toLowerCase().includes(qVal) ||
+            (c.correo || "").toLowerCase().includes(qVal) ||
+            (c.notas || "").toLowerCase().includes(qVal)
+          );
+      const sliced = filtered.slice(0, 12);
+      setContactos(sliced);
+
+      // Si ya hay un contacto seleccionado en el formulario, reflejarlo en el chip
+      if (selectedContactoId) {
+        const match = list.find((c) => String(c._id) === String(selectedContactoId));
+        if (match) setSelected(normalizeContacto(match));
+      }
+    } catch {
+      setContactos([]);
+    }
   };
 
   useEffect(() => {
-    loadContactos();
-    // Refrescar si cambia localStorage (cuando se crea un contacto en el modal)
-    window.addEventListener("storage", loadContactos);
-    return () => window.removeEventListener("storage", loadContactos);
-  }, []);
+    loadContactos("");
+    // recargar al crear/editar contacto (evento local del componente)
+    const onUpd = () => loadContactos("");
+    window.addEventListener("contactos-updated", onUpd);
+    return () => window.removeEventListener("contactos-updated", onUpd);
+  }, [empresaId, empresaNombre, selectedContactoId]);
+
+  useEffect(() => {
+    if (prevEmpresaKey.current === null) {
+      prevEmpresaKey.current = empresaContextKey;
+      return;
+    }
+    if (prevEmpresaKey.current !== empresaContextKey) {
+      prevEmpresaKey.current = empresaContextKey;
+      setSelected(null);
+      setQuery("");
+      setOpen(false);
+      onSelect({ nombre: "", cargo: "", contactoId: null });
+    }
+  }, [empresaContextKey, onSelect]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -403,17 +804,36 @@ function ContactoSearch({ onSelect, empresaNombre, onOpenCrear }) {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  const tieneEmpresaVinculo = Boolean((empresaNombre || "").trim() || empresaId);
+
+  const poolEmpresa = () => {
+    return contactos;
+  };
+
+  const filtrarPool = (pool, val) => {
+    if (!val.trim()) return pool.slice(0, 12);
+    const q = val.toLowerCase();
+    return pool
+      .filter(
+        (c) =>
+          c.nombre?.toLowerCase().includes(q) ||
+          c.cargo?.toLowerCase().includes(q) ||
+          c.profesion?.toLowerCase().includes(q) ||
+          c.correo?.toLowerCase().includes(q) ||
+          c.telefono?.toLowerCase().includes(q)
+      )
+      .slice(0, 12);
+  };
+
   const handleSearch = (val) => {
     setQuery(val);
     setSelected(null);
-    if (!val.trim()) { setResults([]); setOpen(false); return; }
-    const q = val.toLowerCase();
-    const found = contactos.filter(c =>
-      c.nombre?.toLowerCase().includes(q) ||
-      c.cargo?.toLowerCase().includes(q) ||
-      c.empresa?.toLowerCase().includes(q)
-    ).slice(0, 7);
-    setResults(found);
+    loadContactos(val);
+    setOpen(true);
+  };
+
+  const handleFocusInput = () => {
+    loadContactos(query);
     setOpen(true);
   };
 
@@ -421,20 +841,21 @@ function ContactoSearch({ onSelect, empresaNombre, onOpenCrear }) {
     setQuery(contacto.nombre);
     setSelected(contacto);
     setOpen(false);
-    onSelect({ nombre: contacto.nombre, cargo: contacto.cargo });
+    onSelect({ nombre: contacto.nombre, cargo: contacto.cargo || "", contactoId: contacto._id });
   };
 
   const handleCrearClick = () => {
     setOpen(false);
-    onOpenCrear();
+    onOpenCrear(query.trim());
   };
 
   const handleClear = () => {
     setQuery("");
     setSelected(null);
-    setResults([]);
-    onSelect({ nombre: "", cargo: "" });
+    onSelect({ nombre: "", cargo: "", contactoId: null });
   };
+
+  const hintSinEmpresa = !tieneEmpresaVinculo && open && !query.trim();
 
   return (
     <div className="relative" ref={ref}>
@@ -442,35 +863,41 @@ function ContactoSearch({ onSelect, empresaNombre, onOpenCrear }) {
         <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
           Nombre del encargado <span className="text-red-400">*</span>
         </label>
-
-        {/* Input de búsqueda */}
+        <p className="text-[10px] text-gray-400 -mt-0.5">
+          {tieneEmpresaVinculo
+            ? "Se listan primero los contactos vinculados a esta empresa. Puedes crear otro aunque ya existan homónimos."
+            : "Elige la empresa arriba para ver sus contactos, o escribe para buscar en todos."}
+        </p>
         <div className="relative">
           <input
             type="text"
             value={query}
-            onChange={e => handleSearch(e.target.value)}
-            onFocus={() => { loadContactos(); if (query) setOpen(true); }}
-            placeholder="Buscar contacto por nombre o cargo..."
+            onChange={(e) => handleSearch(e.target.value)}
+            onFocus={handleFocusInput}
+            placeholder="Buscar por nombre, cargo, teléfono o correo..."
             className={`w-full pl-10 pr-10 py-3 rounded-xl border text-sm font-medium text-gray-800
               focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all
-              ${selected ? "border-emerald-300 bg-emerald-50" : "border-gray-200 bg-gray-50"}`}
+              ${
+                selected
+                  ? "border-emerald-300 bg-emerald-50"
+                  : fieldValid === true
+                    ? "border-emerald-400 bg-emerald-50/70"
+                    : fieldValid === false
+                      ? "border-red-400 bg-red-50/50"
+                      : "border-gray-200 bg-gray-50"
+              }`}
           />
           <span className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${selected ? "text-emerald-500" : "text-gray-400"}`}>
             {selected ? <CheckIcon /> : <SearchIcon />}
           </span>
           {query && (
-            <button
-              type="button"
-              onClick={handleClear}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition-colors"
-            >
+            <button type="button" onClick={handleClear} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition-colors">
               <CloseIcon />
             </button>
           )}
         </div>
       </div>
 
-      {/* Chip del contacto seleccionado */}
       {selected && (
         <div className="mt-2 flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200">
           <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white text-xs font-black flex-shrink-0">
@@ -478,81 +905,109 @@ function ContactoSearch({ onSelect, empresaNombre, onOpenCrear }) {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-gray-800 truncate">{selected.nombre}</p>
-            <p className="text-xs text-emerald-600 font-semibold">{selected.cargo} · {selected.empresa || "—"}</p>
+            <p className="text-xs text-emerald-600 font-semibold truncate">
+              {selected.cargo}
+              {selected.telefono ? ` · ${selected.telefono}` : ""}
+              {selected.correo ? ` · ${selected.correo}` : ""}
+            </p>
           </div>
-          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
-            Seleccionado
-          </span>
+          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full flex-shrink-0">Seleccionado</span>
         </div>
       )}
 
-      {/* Dropdown */}
       {open && (
-        <div className="absolute top-full left-0 right-0 z-30 mt-1 bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden">
+        <div className="absolute top-full left-0 right-0 z-30 mt-1 bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden max-h-80 overflow-y-auto">
+          {hintSinEmpresa && (
+            <div className="px-4 py-3 text-xs text-gray-500 border-b border-gray-100">
+              Selecciona la empresa en <span className="font-semibold text-gray-700">Datos de la Empresa</span> para filtrar contactos vinculados, o escribe un nombre para buscar en toda la base.
+            </div>
+          )}
 
-          {/* Resultados */}
-          {results.length > 0 && results.map((c, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => handleSelect(c)}
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#1C355E]/5 transition-colors text-left border-b border-gray-50 last:border-0"
-            >
-              {/* Avatar inicial */}
-              <div className="w-9 h-9 rounded-full bg-[#1C355E]/10 flex items-center justify-center flex-shrink-0 text-[#1C355E] text-sm font-black">
-                {c.nombre?.charAt(0)?.toUpperCase() || "?"}
+          {contactos.length > 0 &&
+            contactos.map((c, idx) => (
+              <div key={c._id != null ? String(c._id) : `c-${idx}-${c.nombre}`} className="flex items-stretch border-b border-gray-50 last:border-0">
+                <button
+                  type="button"
+                  onClick={() => handleSelect(c)}
+                  className="flex-1 flex items-center gap-3 px-4 py-3 hover:bg-[#1C355E]/5 transition-colors text-left min-w-0"
+                >
+                  <div className="w-9 h-9 rounded-full bg-[#1C355E]/10 flex items-center justify-center flex-shrink-0 text-[#1C355E] text-sm font-black">
+                    {c.nombre?.charAt(0)?.toUpperCase() || "?"}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-gray-800 truncate">{c.nombre}</p>
+                    <p className="text-xs text-gray-400 truncate">
+                      {c.cargo || "—"}
+                      {c.profesion ? ` · ${c.profesion}` : ""}
+                      {c.telefono ? ` · ${c.telefono}` : ""}
+                    </p>
+                  </div>
+                </button>
+                {c._id != null && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setOpen(false);
+                      onOpenEditar(c);
+                    }}
+                    className="px-3 flex items-center text-[10px] font-black uppercase tracking-wide text-[#1C355E] hover:bg-[#1C355E]/10 border-l border-gray-100 flex-shrink-0"
+                  >
+                    Editar
+                  </button>
+                )}
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-gray-800 truncate">{c.nombre}</p>
-                <p className="text-xs text-gray-400 truncate">{c.cargo} · {c.empresa || "Sin empresa"}</p>
-              </div>
-            </button>
-          ))}
+            ))}
 
-          {/* Sin resultados pero hay texto — mostrar crear */}
-          {results.length === 0 && query.trim() && (
+          {contactos.length === 0 && query.trim() && (
             <div className="px-4 py-3">
               <p className="text-xs text-gray-400 mb-2.5">
-                No se encontró <span className="font-semibold text-gray-600">"{query}"</span> en los contactos
+                No hay coincidencias{tieneEmpresaVinculo ? " para esta empresa" : ""} con{" "}
+                <span className="font-semibold text-gray-600">&quot;{query}&quot;</span>
               </p>
+              {tieneEmpresaVinculo && (
+                <button
+                  type="button"
+                  onClick={handleCrearClick}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#1C355E] text-white text-sm font-bold hover:bg-[#16294d] active:scale-[.98] transition-all"
+                >
+                  <PlusIcon /> CREAR CONTACTO +
+                </button>
+              )}
+            </div>
+          )}
+
+          {contactos.length > 0 && tieneEmpresaVinculo && (
+            <div className="px-4 py-2 border-t border-gray-100 bg-gray-50/80">
+              <p className="text-[10px] text-gray-500 mb-2 text-center">¿No es ninguno de estos? (ej. otro homónimo)</p>
               <button
                 type="button"
                 onClick={handleCrearClick}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl
-                  bg-[#1C355E] text-white text-sm font-bold
-                  hover:bg-[#16294d] active:scale-[.98] transition-all"
+                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-[#1C355E] text-xs font-bold border border-[#1C355E]/25 hover:bg-[#1C355E]/8"
+              >
+                <PlusIcon /> CREAR OTRO CONTACTO +
+              </button>
+            </div>
+          )}
+
+          {contactos.length === 0 && !query.trim() && tieneEmpresaVinculo && (
+            <div className="px-4 py-4 text-center space-y-2">
+              <p className="text-xs text-gray-400">No hay contactos vinculados a esta empresa aún.</p>
+              <button
+                type="button"
+                onClick={handleCrearClick}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl mx-auto bg-[#1C355E] text-white text-sm font-bold hover:bg-[#16294d]"
               >
                 <PlusIcon /> CREAR CONTACTO +
               </button>
             </div>
           )}
 
-          {/* Sin texto aún — sugerir crear */}
-          {results.length === 0 && !query.trim() && contactos.length === 0 && (
+          {!tieneEmpresaVinculo && !query.trim() && contactos.length === 0 && (
             <div className="px-4 py-4 text-center">
               <p className="text-xs text-gray-400 mb-3">Aún no hay contactos registrados</p>
-              <button
-                type="button"
-                onClick={handleCrearClick}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl mx-auto
-                  bg-[#1C355E] text-white text-sm font-bold hover:bg-[#16294d] transition-all"
-              >
-                <PlusIcon /> CREAR CONTACTO +
-              </button>
-            </div>
-          )}
-
-          {/* Hay contactos pero no hay query — botón crear al fondo */}
-          {!query.trim() && contactos.length > 0 && (
-            <div className="px-4 py-2 border-t border-gray-100 bg-gray-50/60">
-              <button
-                type="button"
-                onClick={handleCrearClick}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl
-                  text-[#1C355E] text-xs font-bold hover:bg-[#1C355E]/8 transition-all"
-              >
-                <PlusIcon /> CREAR CONTACTO +
-              </button>
+              <p className="text-[10px] text-gray-400 mb-2">Primero elige empresa en la visita para crear un contacto vinculado.</p>
             </div>
           )}
         </div>
@@ -564,13 +1019,17 @@ function ContactoSearch({ onSelect, empresaNombre, onOpenCrear }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // COMPANY SEARCH
 // ─────────────────────────────────────────────────────────────────────────────
-function EmpresaSearch({ onSelect, clientes }) {
-  const [query, setQuery]     = useState("");
+function EmpresaSearch({ onSelect, clientes, defaultQuery = "", fieldValid }) {
+  const [query, setQuery]     = useState(defaultQuery);
   const [results, setResults] = useState([]);
   const [open, setOpen]       = useState(false);
   const [loading, setLoading] = useState(false);
   const ref = useRef(null);
   const tRef = useRef(null);
+
+  useEffect(() => {
+    setQuery(defaultQuery ?? "");
+  }, [defaultQuery]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -599,7 +1058,7 @@ function EmpresaSearch({ onSelect, clientes }) {
 
   const handleSearch = (val) => {
     setQuery(val);
-    if (!val.trim()) { setResults([]); setOpen(false); return; }
+    if (!val.trim()) { setResults([]); setOpen(false); setLoading(false); return; }
 
     if (tRef.current) clearTimeout(tRef.current);
     tRef.current = setTimeout(async () => {
@@ -608,29 +1067,39 @@ function EmpresaSearch({ onSelect, clientes }) {
       try {
         const token = getToken();
         const params = new URLSearchParams({ page: "1", limit: "8", search: q });
-        const res = await fetch(`/api/clientes?${params.toString()}`, {
-          headers: { Authorization: token },
-        });
+        const base = process.env.NEXT_PUBLIC_API_URL || "";
+        const url = base
+          ? `${base.replace(/\/$/, "")}/clientes?${params.toString()}`
+          : `/api/clientes?${params.toString()}`;
+
+        const res = await fetch(url, { headers: { Authorization: token } });
         if (res.ok) {
           const json = await res.json();
-          const list = Array.isArray(json?.clientes) ? json.clientes : [];
+          const list = Array.isArray(json?.clientes)
+            ? json.clientes
+            : Array.isArray(json?.data)
+              ? json.data
+              : Array.isArray(json)
+                ? json
+                : [];
           const mapped = list.map(mapClienteToEmpresa);
           setResults(mapped);
           setOpen(true);
           return;
         }
-      } catch {}
 
-      // Fallback a clientes locales (si existieran)
-      const low = q.toLowerCase();
-      const found = (clientes || [])
-        .filter((c) =>
-          c?.nombre?.toLowerCase().includes(low) || c?.nit?.toLowerCase().includes(low)
-        )
-        .slice(0, 8);
-      setResults(found);
-      setOpen(true);
-      setLoading(false);
+        // Fallback a clientes locales (si existieran)
+        const low = q.toLowerCase();
+        const found = (clientes || [])
+          .filter((c) =>
+            c?.nombre?.toLowerCase().includes(low) || c?.nit?.toLowerCase().includes(low)
+          )
+          .slice(0, 8);
+        setResults(found);
+        setOpen(true);
+      } finally {
+        setLoading(false);
+      }
     }, 250);
   };
 
@@ -653,8 +1122,15 @@ function EmpresaSearch({ onSelect, clientes }) {
             onChange={e => handleSearch(e.target.value)}
             onFocus={() => query && setOpen(results.length > 0)}
             placeholder="Buscar por nombre o NIT..."
-            className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800
-              focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all"
+            className={`w-full pl-10 pr-4 py-3 rounded-xl border text-sm font-medium text-gray-800
+              focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all
+              ${
+                fieldValid === true
+                  ? "border-emerald-400 bg-emerald-50/70"
+                  : fieldValid === false
+                    ? "border-red-400 bg-red-50/50"
+                    : "border-gray-200 bg-gray-50"
+              }`}
           />
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><SearchIcon /></span>
           {loading && (
@@ -857,7 +1333,7 @@ function TareasPendientes({ tareas, onSave }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function VisitasPasadasModal({ show, onClose, empresa, visitasFinalizadas }) {
   const pasadas = visitasFinalizadas.filter(
-    v => (v.datosVisita?.nombreEmpresa || v.cliente)?.toLowerCase() === empresa?.toLowerCase()
+    v => (v.datosVisita?.nombreEmpresa || "")?.toLowerCase() === (empresa || "")?.toLowerCase()
   );
   return (
     <Modal show={show} onClose={onClose} wide>
@@ -891,8 +1367,10 @@ function VisitasPasadasModal({ show, onClose, empresa, visitasFinalizadas }) {
 // DETALLES VISITA MODAL — con ContactoSearch + CrearContactoModal
 // ─────────────────────────────────────────────────────────────────────────────
 function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFinalizadas, clientes }) {
+  const draftKey = (id) => `equielect_visita_draft_v1_${user?.cedula || "anon"}_${id}`;
+
   const emptyForm = {
-    nit: "", nombreEmpresa: "", nombreEncargado: "", cargoEncargado: "",
+    nit: "", nombreEmpresa: "", empresaId: "", nombreEncargado: "", cargoEncargado: "", encargadoContactoId: "",
     tipoVisita: "", observaciones: "", municipio: "", tipoVehiculo: "", direccionEmpresa: "",
   };
   const [form, setForm]               = useState(emptyForm);
@@ -902,44 +1380,104 @@ function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFi
   const [showConfirm, setShowConfirm] = useState(false);
   const [showPasadas, setShowPasadas] = useState(false);
   const [showCrearContacto, setShowCrearContacto] = useState(false);
+  const [showEditarContacto, setShowEditarContacto] = useState(false);
+  const [contactoAEditar, setContactoAEditar] = useState(null);
+  const [nombreInicialCrearContacto, setNombreInicialCrearContacto] = useState("");
   const [errors, setErrors]           = useState([]);
 
   useEffect(() => {
     if (show) {
-      setForm({ ...emptyForm, nombreEmpresa: cita?.cliente || "" });
-      setTareas([]); setErrors([]); setGeoCoords(null);
+      const baseForm = {
+        ...emptyForm,
+        nombreEmpresa: cita?.datosVisita?.nombreEmpresa || "",
+        empresaId: cita?.clienteId ? String(cita.clienteId) : "",
+        nit: cita?.datosVisita?.nit || "",
+        direccionEmpresa: cita?.datosVisita?.direccionEmpresa || "",
+      };
+
+      // Cargar borrador local si existe (para visitas activas)
+      let merged = baseForm;
+      try {
+        const raw = localStorage.getItem(draftKey(cita?.id));
+        if (raw) {
+          const saved = JSON.parse(raw);
+          merged = { ...baseForm, ...(saved?.form || {}) };
+          setTareas(Array.isArray(saved?.tareas) ? saved.tareas : []);
+          setGeoCoords(saved?.geoCoords || null);
+        } else {
+          setTareas([]); setGeoCoords(null);
+        }
+      } catch {
+        setTareas([]); setGeoCoords(null);
+      }
+      setForm(merged);
+      setErrors([]);
     }
   }, [show, cita]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleEmpresaSelect = (empresa) => {
-    setForm(f => ({
+    setForm((f) => ({
       ...f,
       nit: empresa.nit || "",
       nombreEmpresa: empresa.nombre || "",
       direccionEmpresa: empresa.direccion || empresa.ciudad || "",
+      empresaId: empresa._id != null ? String(empresa._id) : "",
+      nombreEncargado: "",
+      cargoEncargado: "",
+      encargadoContactoId: "",
     }));
   };
 
-  // Cuando ContactoSearch selecciona un contacto
-  const handleContactoSelect = ({ nombre, cargo }) => {
-    set("nombreEncargado", nombre);
-    set("cargoEncargado", cargo);
+  const handleContactoSelect = useCallback(({ nombre, cargo, contactoId }) => {
+    setForm((f) => ({
+      ...f,
+      nombreEncargado: nombre || "",
+      cargoEncargado: cargo || "",
+      encargadoContactoId: contactoId != null ? String(contactoId) : "",
+    }));
+  }, []);
+
+  const handleContactoCreado = (nuevo) => {
+    setForm((f) => ({
+      ...f,
+      nombreEncargado: nuevo.nombre,
+      cargoEncargado: nuevo.cargo,
+      encargadoContactoId: nuevo._id != null ? String(nuevo._id) : "",
+    }));
+    window.dispatchEvent(new Event("contactos-updated"));
   };
 
-  // Cuando se crea un contacto nuevo desde el modal
-  const handleContactoCreado = (nuevo) => {
-    set("nombreEncargado", nuevo.nombre);
-    set("cargoEncargado", nuevo.cargo);
-    // Disparar evento storage para que ContactoSearch recargue
-    window.dispatchEvent(new Event("storage"));
+  const handleContactoEditado = (updated) => {
+    window.dispatchEvent(new Event("contactos-updated"));
+    setForm((f) => {
+      if (f.encargadoContactoId && String(updated._id) === String(f.encargadoContactoId)) {
+        return { ...f, nombreEncargado: updated.nombre, cargoEncargado: updated.cargo };
+      }
+      return f;
+    });
   };
+
+  const empresaVinculoContacto = form.nombreEmpresa?.trim()
+    ? { _id: form.empresaId || undefined, nombre: form.nombreEmpresa }
+    : null;
+
+  const empresaContextKeyContacto = `${form.empresaId}|${form.nombreEmpresa}`;
+
+  const empresaFieldOk = Boolean(form.nombreEmpresa?.trim() && form.empresaId);
+  const contactoFieldOk = Boolean(form.nombreEncargado?.trim() && form.cargoEncargado?.trim());
 
   const validate = () => {
     const required = ["nombreEmpresa", "nombreEncargado", "cargoEncargado", "tipoVisita", "municipio", "tipoVehiculo"];
     const missing  = required.filter(k => !form[k]?.trim());
     if (!geoCoords) missing.push("geolocalización");
+    if (
+      (form.tipoVehiculo === "Carro" || form.tipoVehiculo === "Motocicleta") &&
+      !chequeoCumpleParaCerrarVisita(user, form.tipoVehiculo)
+    ) {
+      missing.push("chequeo vehículo del día (menú Chequeo vehículo)");
+    }
     return missing;
   };
 
@@ -953,11 +1491,27 @@ function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFi
   const confirmarFinalizar = () => {
     setShowConfirm(false);
     onFinalizar({ ...form, geoCoords, tareasPendientes: tareas });
+    // limpiar borrador al finalizar
+    try { localStorage.removeItem(draftKey(cita?.id)); } catch {}
     onClose();
   };
 
+  // Autosave del progreso mientras el modal esté abierto
+  useEffect(() => {
+    if (!show || !cita?.id) return;
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem(
+          draftKey(cita.id),
+          JSON.stringify({ form, tareas, geoCoords, updatedAt: Date.now() })
+        );
+      } catch {}
+    }, 300);
+    return () => clearTimeout(t);
+  }, [show, cita?.id, form, tareas, geoCoords]);
+
   const visitasPasadasCount = visitasFinalizadas.filter(
-    v => (v.datosVisita?.nombreEmpresa || v.cliente)?.toLowerCase() === form.nombreEmpresa?.toLowerCase()
+    v => (v.datosVisita?.nombreEmpresa || "")?.toLowerCase() === (form.nombreEmpresa || "")?.toLowerCase()
   ).length;
 
   if (!show) return null;
@@ -972,7 +1526,7 @@ function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFi
           <div className="sticky top-0 bg-white/95 backdrop-blur border-b border-gray-100 px-7 py-5 rounded-t-3xl flex items-center justify-between z-10">
             <div>
               <h2 className="text-lg font-bold text-[#1C355E]">Detalle de Visita</h2>
-              <p className="text-xs text-gray-400 mt-0.5">{cita?.cliente} · {cita?.fecha} {cita?.hora}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{cita?.datosVisita?.nombreEmpresa || "—"} · {cita?.fecha} {cita?.hora}</p>
             </div>
             <button onClick={onClose} className="w-9 h-9 rounded-full hover:bg-gray-100 flex items-center justify-center"><CloseIcon /></button>
           </div>
@@ -995,7 +1549,13 @@ function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFi
               <div className="space-y-3">
 
                 {/* Búsqueda empresa */}
-                <EmpresaSearch onSelect={handleEmpresaSelect} clientes={clientes} />
+                <EmpresaSearch
+                  key={cita?.id ? `emp-${cita.id}` : "emp-detalle"}
+                  defaultQuery={form.nombreEmpresa}
+                  onSelect={handleEmpresaSelect}
+                  clientes={clientes}
+                  fieldValid={empresaFieldOk}
+                />
                 <div className="grid grid-cols-2 gap-3">
                   <ReadonlyField label="NIT"       value={form.nit} />
                   <ReadonlyField label="Dirección" value={form.direccionEmpresa} />
@@ -1004,28 +1564,30 @@ function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFi
                 {/* ── CONTACTO SEARCH ── */}
                 <ContactoSearch
                   onSelect={handleContactoSelect}
+                  empresaId={form.empresaId}
                   empresaNombre={form.nombreEmpresa}
-                  onOpenCrear={() => setShowCrearContacto(true)}
+                  empresaContextKey={empresaContextKeyContacto}
+                  defaultQuery={form.nombreEncargado}
+                  selectedContactoId={form.encargadoContactoId}
+                  fieldValid={contactoFieldOk}
+                  onOpenCrear={(nombreSugerido) => {
+                    setNombreInicialCrearContacto(nombreSugerido || "");
+                    setShowCrearContacto(true);
+                  }}
+                  onOpenEditar={(c) => {
+                    setContactoAEditar(c);
+                    setShowEditarContacto(true);
+                  }}
                 />
 
-                {/* Cargo — se muestra readonly si viene del contacto, o editable si no */}
-                {form.cargoEncargado ? (
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Cargo del encargado</label>
-                    <div className="w-full px-4 py-3 rounded-xl border border-dashed border-emerald-200 bg-emerald-50/60 text-sm font-semibold text-emerald-700 flex items-center gap-2">
-                      <CheckIcon />
-                      {form.cargoEncargado}
-                    </div>
-                  </div>
-                ) : (
-                  <InputField
-                    label="Cargo del encargado"
-                    required
-                    placeholder="Se autocompleta al seleccionar contacto"
-                    value={form.cargoEncargado}
-                    onChange={e => set("cargoEncargado", e.target.value)}
-                  />
-                )}
+                <InputField
+                  label="Cargo del encargado"
+                  required
+                  fieldValid={!!form.cargoEncargado?.trim()}
+                  placeholder="Se completa al elegir un contacto (campo cargo) o escríbelo"
+                  value={form.cargoEncargado}
+                  onChange={(e) => set("cargoEncargado", e.target.value)}
+                />
               </div>
             </section>
 
@@ -1034,15 +1596,22 @@ function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFi
               <SectionHeader number="3" title="Detalles de Visita" />
               <div className="space-y-3">
                 <SelectField label="Tipo de visita" required options={TIPO_VISITA}
+                  fieldValid={!!form.tipoVisita?.trim()}
                   value={form.tipoVisita} onChange={e => set("tipoVisita", e.target.value)} />
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Observaciones</label>
                   <textarea rows={3} value={form.observaciones} onChange={e => set("observaciones", e.target.value)}
                     placeholder="Describe los puntos clave de la visita..."
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800
-                      focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all resize-none" />
+                    className={`w-full px-4 py-3 rounded-xl border text-sm font-medium text-gray-800
+                      focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all resize-none
+                      ${
+                        form.observaciones?.trim()
+                          ? "border-emerald-400 bg-emerald-50/60"
+                          : "border-gray-200 bg-gray-50"
+                      }`} />
                 </div>
                 <SelectField label="Municipio" required options={MUNICIPIOS_COLOMBIA}
+                  fieldValid={!!form.municipio?.trim()}
                   value={form.municipio} onChange={e => set("municipio", e.target.value)} />
 
                 {/* TRANSPORTE */}
@@ -1050,7 +1619,10 @@ function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFi
                   <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                     Tipo de transporte <span className="text-red-400">*</span>
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div
+                    className={`grid grid-cols-3 gap-2 rounded-xl p-1 transition-all
+                      ${form.tipoVehiculo?.trim() ? "ring-2 ring-emerald-300/80" : "ring-2 ring-red-300/80"}`}
+                  >
                     {[
                       { value: "Motocicleta",        icon: <BikeIcon /> },
                       { value: "Carro",              icon: <CarIcon /> },
@@ -1066,13 +1638,34 @@ function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFi
                       </button>
                     ))}
                   </div>
-                  {/* VALIDACION VEH */}
-                  {form.tipoVehiculo && (
-                    <a href={VALIDACION_VEH_URL} target="_blank" rel="noopener noreferrer"
-                      className="mt-2 w-full flex items-center justify-center gap-2 py-3 rounded-xl
-                        bg-[#FFCD00] text-[#1C355E] font-bold text-sm hover:bg-yellow-400 active:scale-[.98] transition-all">
-                      <ExternalLinkIcon /> VALIDACION VEH
-                    </a>
+                  {(form.tipoVehiculo === "Carro" || form.tipoVehiculo === "Motocicleta" || form.tipoVehiculo === "Transporte Público") && (
+                    <div
+                      className={`mt-3 rounded-xl border px-4 py-3 text-xs ${
+                        chequeoCumpleParaCerrarVisita(user, form.tipoVehiculo)
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                          : "border-red-300 bg-red-50 text-red-950"
+                      }`}
+                    >
+                      <p className="font-bold text-sm mb-1">Chequeo vehicular del día</p>
+                      {chequeoCumpleParaCerrarVisita(user, form.tipoVehiculo) ? (
+                        <p>
+                          Listo: ya enviaste el chequeo de <strong>{form.tipoVehiculo}</strong> hoy. Puedes finalizar esta visita.
+                        </p>
+                      ) : (
+                        <>
+                          <p className="mb-2">
+                            Para cerrar la visita en <strong>{form.tipoVehiculo}</strong> debes enviar primero el formulario en{" "}
+                            <strong>Chequeo vehículo</strong> (una vez por día por tipo de transporte).
+                          </p>
+                          <Link
+                            href="/dashboard/asesor/chequeo-vehiculo"
+                            className="inline-flex font-bold text-[#1C355E] underline"
+                          >
+                            Ir a Chequeo vehículo
+                          </Link>
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -1089,8 +1682,9 @@ function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFi
               <SectionHeader number="5" title="Geolocalización" />
               {!geoCoords ? (
                 <button type="button" onClick={() => setShowGeo(true)}
-                  className="w-full py-4 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center gap-3
-                    text-sm font-semibold text-gray-400 hover:border-[#1C355E] hover:text-[#1C355E] hover:bg-[#1C355E]/3 transition-all">
+                  className="w-full py-4 rounded-xl border-2 border-dashed flex items-center justify-center gap-3
+                    text-sm font-semibold transition-all border-red-300 bg-red-50/50 text-red-700
+                    hover:border-[#1C355E] hover:text-[#1C355E] hover:bg-[#1C355E]/3">
                   <LocationIcon /> Capturar mi ubicación actual
                 </button>
               ) : (
@@ -1148,9 +1742,23 @@ function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFi
       {/* Modal CREAR CONTACTO — z-[60] para estar sobre el modal principal */}
       <CrearContactoModal
         show={showCrearContacto}
-        onClose={() => setShowCrearContacto(false)}
+        onClose={() => {
+          setShowCrearContacto(false);
+          setNombreInicialCrearContacto("");
+        }}
         onCreated={handleContactoCreado}
-        empresaPredeterminada={form.nombreEmpresa}
+        empresaVinculo={empresaVinculoContacto}
+        nombreInicial={nombreInicialCrearContacto}
+      />
+      <EditarContactoModal
+        show={showEditarContacto}
+        contacto={contactoAEditar}
+        empresaVinculo={empresaVinculoContacto}
+        onClose={() => {
+          setShowEditarContacto(false);
+          setContactoAEditar(null);
+        }}
+        onSaved={handleContactoEditado}
       />
 
       {/* Confirm finalizar */}
@@ -1203,15 +1811,45 @@ function ReprogramarModal({ show, onClose, cita, onSave }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // CREAR CITA MODAL — sin campo celular
 // ─────────────────────────────────────────────────────────────────────────────
-function CrearCitaModal({ show, onClose, user, onCreate }) {
-  const empty = { cliente: "", fecha: "", hora: "" };
+function CrearCitaModal({ show, onClose, user, onCreate, clientes }) {
+  const empty = { cliente: "", fecha: "", hora: "", empresa: null };
   const [form, setForm]     = useState(empty);
   const [created, setCreated] = useState(null);
-  useEffect(() => { if (show) { setForm(empty); setCreated(null); } }, [show]);
+  const [formError, setFormError] = useState("");
+  useEffect(() => { if (show) { setForm(empty); setCreated(null); setFormError(""); } }, [show]);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const handleEmpresaSelect = (empresa) => {
+    setFormError("");
+    setForm((f) => ({
+      ...f,
+      cliente: empresa?.nombre || "",
+      empresa: empresa || null,
+    }));
+  };
   const handleCreate = (e) => {
     e.preventDefault();
-    const nueva = { id: Date.now(), ...form, estado: "pendiente", asesorNombre: user?.nombre || "Asesor", asesorId: user?.id };
+    if (!user?.nombre?.trim()) {
+      setFormError("No hay sesión de asesor. Vuelve a iniciar sesión.");
+      return;
+    }
+    if (!form.empresa?._id) {
+      setFormError("Busca y selecciona una empresa de la lista (obligatorio).");
+      return;
+    }
+    if (!form.fecha?.trim()) {
+      setFormError("Indica la fecha de la visita.");
+      return;
+    }
+    if (!form.hora?.trim()) {
+      setFormError("Indica la hora de la visita.");
+      return;
+    }
+    setFormError("");
+    const nueva = {
+      ...form,
+      cliente: form.empresa?.nombre || form.cliente,
+      asesorNombre: user?.nombre || "Asesor",
+    };
     onCreate(nueva);
     setCreated(nueva);
   };
@@ -1226,11 +1864,20 @@ function CrearCitaModal({ show, onClose, user, onCreate }) {
             </div>
             <form onSubmit={handleCreate} className="space-y-4">
               <ReadonlyField label="Asesor" value={user?.nombre} />
-              <InputField label="Empresa / Cliente" required placeholder="Empresa S.A.S." value={form.cliente} onChange={e => set("cliente", e.target.value)} />
+              <EmpresaSearch
+                defaultQuery={form.cliente}
+                onSelect={handleEmpresaSelect}
+                clientes={clientes}
+              />
               <div className="grid grid-cols-2 gap-3">
-                <InputField label="Fecha" required type="date" value={form.fecha} onChange={e => set("fecha", e.target.value)} />
-                <InputField label="Hora"  required type="time" value={form.hora}  onChange={e => set("hora", e.target.value)} />
+                <InputField label="Fecha" required type="date" value={form.fecha} onChange={e => { setFormError(""); set("fecha", e.target.value); }} />
+                <InputField label="Hora"  required type="time" value={form.hora}  onChange={e => { setFormError(""); set("hora", e.target.value); }} />
               </div>
+              {formError && (
+                <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs font-semibold text-red-600">
+                  {formError}
+                </div>
+              )}
               <button type="submit" className="w-full py-4 rounded-xl bg-[#FFCD00] text-[#1C355E] font-bold text-sm hover:bg-yellow-400 active:scale-[.98] transition-all mt-2">Crear Visita</button>
             </form>
           </>
@@ -1252,6 +1899,92 @@ function CrearCitaModal({ show, onClose, user, onCreate }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// EDITAR VISITA (solo si aún no ha iniciado: pendiente / reprogramada)
+// ─────────────────────────────────────────────────────────────────────────────
+function EditarVisitaModal({ show, onClose, cita, clientes, onSave }) {
+  const [fecha, setFecha] = useState("");
+  const [hora, setHora] = useState("");
+  const [empresaSel, setEmpresaSel] = useState(null);
+  const [formError, setFormError] = useState("");
+
+  useEffect(() => {
+    if (show && cita) {
+      setFecha(cita.fecha || "");
+      setHora(cita.hora || "");
+      if (cita.empresa) setEmpresaSel(cita.empresa);
+      else if (cita.cliente) setEmpresaSel({ nombre: cita.cliente, nit: "", direccion: "", ciudad: "" });
+      else setEmpresaSel(null);
+      setFormError("");
+    }
+  }, [show, cita]);
+
+  const handleEmpresaSelect = (empresa) => {
+    setFormError("");
+    setEmpresaSel(empresa);
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!empresaSel?.nombre?.trim()) {
+      setFormError("Busca y selecciona una empresa de la lista.");
+      return;
+    }
+    if (!fecha?.trim()) {
+      setFormError("Indica la fecha de la visita.");
+      return;
+    }
+    if (!hora?.trim()) {
+      setFormError("Indica la hora de la visita.");
+      return;
+    }
+    setFormError("");
+    onSave({
+      cliente: empresaSel.nombre.trim(),
+      empresa: empresaSel,
+      fecha,
+      hora,
+    });
+    onClose();
+  };
+
+  if (!show || !cita) return null;
+
+  return (
+    <Modal show={show} onClose={onClose}>
+      <div className="p-7">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-xl font-bold text-[#1C355E]">Editar visita</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Solo antes de iniciar la visita</p>
+          </div>
+          <button type="button" onClick={onClose} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"><CloseIcon /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <EmpresaSearch
+            key={cita.id ? `edit-emp-${cita.id}` : "edit-emp"}
+            defaultQuery={empresaSel?.nombre || ""}
+            onSelect={handleEmpresaSelect}
+            clientes={clientes}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <InputField label="Fecha" required type="date" value={fecha} onChange={e => { setFormError(""); setFecha(e.target.value); }} />
+            <InputField label="Hora" required type="time" value={hora} onChange={e => { setFormError(""); setHora(e.target.value); }} />
+          </div>
+          {formError && (
+            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs font-semibold text-red-600">
+              {formError}
+            </div>
+          )}
+          <button type="submit" className="w-full py-4 rounded-xl bg-[#1C355E] text-white font-bold text-sm hover:bg-[#16294d] active:scale-[.98] transition-all">
+            Guardar cambios
+          </button>
+        </form>
+      </div>
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // INICIAR VISITA MODAL
 // ─────────────────────────────────────────────────────────────────────────────
 function IniciarVisitaModal({ show, onClose, cita, onConfirm }) {
@@ -1264,7 +1997,7 @@ function IniciarVisitaModal({ show, onClose, cita, onConfirm }) {
           <p className="text-sm text-gray-500 mt-1">Se abrirá el formulario de detalles para registrar la información.</p>
         </div>
         <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 space-y-2">
-          {[["🏢","Empresa",cita?.cliente],["📅","Fecha",cita?.fecha],["⏰","Hora",cita?.hora]].map(([icon,label,value]) => (
+          {[["🏢","Empresa",cita?.datosVisita?.nombreEmpresa],["📅","Fecha",cita?.fecha],["⏰","Hora",cita?.hora]].map(([icon,label,value]) => (
             <div key={label} className="flex items-center gap-3 text-sm"><span>{icon}</span><span className="text-gray-400 min-w-[60px]">{label}</span><span className="font-semibold text-gray-700">{value}</span></div>
           ))}
         </div>
@@ -1285,11 +2018,13 @@ export default function AsesorCitasPage() {
   const [citas, setCitas]       = useState([]);
   const [clientes, setClientes] = useState([]);
   const [filtro, setFiltro]     = useState("pendiente");
+  const [loadingCitas, setLoadingCitas] = useState(true);
 
   const [showCrear, setShowCrear]             = useState(false);
   const [showIniciar, setShowIniciar]         = useState(false);
   const [showDetalles, setShowDetalles]       = useState(false);
   const [showReprogramar, setShowReprogramar] = useState(false);
+  const [showEditar, setShowEditar]           = useState(false);
   const [citaSeleccionada, setCitaSeleccionada] = useState(null);
 
   const visitasFinalizadas = citas.filter(c => c.estado === "realizada");
@@ -1297,28 +2032,124 @@ export default function AsesorCitasPage() {
   useEffect(() => {
     const stored = localStorage.getItem("user");
     if (stored) setUser(JSON.parse(stored));
-    const storedCitas = localStorage.getItem("equielect_citas");
-    if (storedCitas) setCitas(JSON.parse(storedCitas));
   }, []);
 
-  const saveCitas = (updated) => { setCitas(updated); localStorage.setItem("equielect_citas", JSON.stringify(updated)); };
-  const handleCrearCita = (nueva) => saveCitas([...citas, nueva]);
+  const getToken = () => {
+    try {
+      const u = JSON.parse(localStorage.getItem("user") || "null");
+      return u?.token || localStorage.getItem("token");
+    } catch {
+      return localStorage.getItem("token");
+    }
+  };
+
+  const fetchCitas = async () => {
+    setLoadingCitas(true);
+    try {
+      const token = getToken();
+      const params = new URLSearchParams({ page: "1", limit: "500" });
+      const base = process.env.NEXT_PUBLIC_API_URL || "";
+      const res = await fetch(`${base.replace(/\/$/, "")}/visitas?${params.toString()}`, {
+        headers: { Authorization: token },
+      });
+      const json = await res.json().catch(() => ({}));
+      // backend puede responder { data, total, ... } o { visitas }
+      const list = Array.isArray(json?.visitas) ? json.visitas : Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
+      if (res.ok) setCitas(list);
+      else setCitas([]);
+      notifyVisitasUpdated();
+    } catch {
+      setCitas([]);
+      notifyVisitasUpdated();
+    } finally {
+      setLoadingCitas(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    fetchCitas();
+  }, [user]);
+
+  const handleCrearCita = async (payload) => {
+    const token = getToken();
+    const base = process.env.NEXT_PUBLIC_API_URL || "";
+    const res = await fetch(`${base.replace(/\/$/, "")}/visitas`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: token },
+      body: JSON.stringify({
+        clienteId: payload?.empresa?._id || payload?.empresaId || null,
+        clienteCrear: payload?.empresa?._id ? null : { nombre: payload?.cliente },
+        fecha: payload?.fecha,
+        hora: payload?.hora,
+        estado: payload?.estado,
+      }),
+    });
+    if (res.ok) await fetchCitas();
+  };
+
   const handleIniciarCita = (cita) => { setCitaSeleccionada(cita); setShowIniciar(true); };
   const confirmarIniciarCita = () => {
     setShowIniciar(false);
-    saveCitas(citas.map(c => c.id === citaSeleccionada.id ? { ...c, estado: "activa" } : c));
-    setShowDetalles(true);
+    (async () => {
+      const token = getToken();
+      const base = process.env.NEXT_PUBLIC_API_URL || "";
+      await fetch(`${base.replace(/\/$/, "")}/visitas/${citaSeleccionada._id}/iniciar`, {
+        method: "PATCH",
+        headers: { Authorization: token },
+      }).catch(() => {});
+      await fetchCitas();
+      setShowDetalles(true);
+    })();
   };
   const handleFinalizarVisita = (datosVisita) => {
-    saveCitas(citas.map(c => c.id === citaSeleccionada.id ? { ...c, estado: "realizada", datosVisita } : c));
-    setCitaSeleccionada(null);
+    (async () => {
+      const token = getToken();
+      const base = process.env.NEXT_PUBLIC_API_URL || "";
+      await fetch(`${base.replace(/\/$/, "")}/visitas/${citaSeleccionada._id}/finalizar`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: token },
+        body: JSON.stringify({ datosVisita, estadoFinal: "realizada" }),
+      }).catch(() => {});
+      await fetchCitas();
+      setCitaSeleccionada(null);
+    })();
   };
   const handleReprogramar = ({ fecha, hora, motivo }) => {
-    saveCitas(citas.map(c => c.id === citaSeleccionada.id ? { ...c, fecha, hora, estado: "reprogramada", motivoReprogramacion: motivo } : c));
-    setCitaSeleccionada(null);
+    (async () => {
+      const token = getToken();
+      const base = process.env.NEXT_PUBLIC_API_URL || "";
+      await fetch(`${base.replace(/\/$/, "")}/visitas/${citaSeleccionada._id}/reprogramar`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: token },
+        body: JSON.stringify({ fecha, hora, motivo }),
+      }).catch(() => {});
+      await fetchCitas();
+      setCitaSeleccionada(null);
+    })();
+  };
+  const handleGuardarEdicion = (payload) => {
+    (async () => {
+      const token = getToken();
+      const base = process.env.NEXT_PUBLIC_API_URL || "";
+      // editar solo fecha/hora/cliente antes de iniciar -> backend no trae endpoint dedicado,
+      // reusamos reprogramar si cambia fecha/hora, y si cambia empresa se recrea (por ahora).
+      if (payload?.fecha || payload?.hora) {
+        await fetch(`${base.replace(/\/$/, "")}/visitas/${citaSeleccionada._id}/reprogramar`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: token },
+          body: JSON.stringify({ fecha: payload.fecha, hora: payload.hora, motivo: "Edición" }),
+        }).catch(() => {});
+      }
+      await fetchCitas();
+      setShowEditar(false);
+    })();
   };
 
-  const myCitas  = citas.filter(c => c.asesorId === user?.id || c.asesorNombre === user?.nombre);
+  const myCitas  = citas; // ya viene filtrado por asesor desde la BD
+  const visitasAbiertasCount = myCitas.filter((c) =>
+    ["pendiente", "activa", "reprogramada"].includes(c.estado)
+  ).length;
   const filtered = filtro === "todos" ? myCitas : myCitas.filter(c => c.estado === filtro);
   const stats    = {
     pendientes: myCitas.filter(c => c.estado === "pendiente").length,
@@ -1337,6 +2168,18 @@ export default function AsesorCitasPage() {
       `}</style>
 
       <div className="space-y-7 pb-10">
+        {visitasAbiertasCount > 0 && (
+          <div className="fade-up rounded-2xl border border-[#1C355E]/20 bg-[#1C355E]/5 px-5 py-4 text-sm text-gray-800">
+            <p className="font-black text-[#1C355E] uppercase tracking-wide text-xs">Chequeo vehículo</p>
+            <p className="mt-1 text-gray-600">
+              Tienes visitas activas o pendientes. Si vas a cerrar alguna en <strong>Carro</strong> o <strong>Motocicleta</strong>, envía el chequeo{" "}
+              <strong>una vez al día</strong> por cada tipo que uses (se renueva cada día).{" "}
+              <Link href="/dashboard/asesor/chequeo-vehiculo" className="font-bold text-[#1C355E] underline">
+                Abrir formulario
+              </Link>
+            </p>
+          </div>
+        )}
         <div className="fade-up flex items-start justify-between flex-wrap gap-4">
           <div><p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Mis Visitas</p><h1 className="text-2xl font-black text-gray-800 mt-0.5">Gestión de citas</h1></div>
           <button onClick={() => setShowCrear(true)}
@@ -1370,7 +2213,12 @@ export default function AsesorCitasPage() {
         </div>
 
         <div className="fade-up fade-up-3 space-y-3">
-          {filtered.length === 0 && (
+          {loadingCitas && (
+            <div className="text-center py-10 bg-white rounded-2xl border border-gray-100">
+              <p className="text-gray-400 font-medium">Cargando visitas...</p>
+            </div>
+          )}
+          {!loadingCitas && filtered.length === 0 && (
             <div className="text-center py-16 bg-white rounded-2xl border border-gray-100">
               <p className="text-4xl mb-3">📋</p>
               <p className="text-gray-400 font-medium">No hay visitas {filtro !== "todos" ? `"${filtro}"` : ""}</p>
@@ -1378,12 +2226,12 @@ export default function AsesorCitasPage() {
             </div>
           )}
           {filtered.map((cita, i) => (
-            <div key={cita.id || i}
+            <div key={cita._id || i}
               className="bg-white rounded-2xl border border-gray-100 p-5 flex items-center justify-between gap-4 hover:border-gray-200 hover:shadow-sm transition-all">
               <div className="flex items-center gap-4 min-w-0">
                 <div className="w-11 h-11 rounded-xl bg-[#1C355E]/8 flex items-center justify-center flex-shrink-0 text-lg">🏢</div>
                 <div className="min-w-0">
-                  <p className="font-bold text-gray-800 truncate">{cita.cliente}</p>
+                  <p className="font-bold text-gray-800 truncate">{cita.datosVisita?.nombreEmpresa || "—"}</p>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-gray-400">
                     <span className="flex items-center gap-1"><CalIcon /> {cita.fecha}</span>
                     {cita.hora && <span>· {cita.hora}</span>}
@@ -1393,6 +2241,15 @@ export default function AsesorCitasPage() {
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <EstadoBadge estado={cita.estado} />
+                {(cita.estado === "pendiente" || cita.estado === "reprogramada") && (
+                  <button
+                    type="button"
+                    onClick={() => { setCitaSeleccionada(cita); setShowEditar(true); }}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-600 text-xs font-bold hover:bg-gray-50 hover:border-[#1C355E]/30 hover:text-[#1C355E] active:scale-[.97] transition-all"
+                  >
+                    <PencilIcon /> Editar
+                  </button>
+                )}
                 {(cita.estado === "pendiente" || cita.estado === "reprogramada") && (
                   <button onClick={() => handleIniciarCita(cita)}
                     className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#FFCD00] text-[#1C355E] text-xs font-bold hover:bg-yellow-400 active:scale-[.97] transition-all">
@@ -1417,7 +2274,13 @@ export default function AsesorCitasPage() {
         </div>
       </div>
 
-      <CrearCitaModal show={showCrear} onClose={() => setShowCrear(false)} user={user} onCreate={handleCrearCita} />
+      <CrearCitaModal
+        show={showCrear}
+        onClose={() => setShowCrear(false)}
+        user={user}
+        onCreate={handleCrearCita}
+        clientes={clientes}
+      />
       <IniciarVisitaModal show={showIniciar} onClose={() => setShowIniciar(false)} cita={citaSeleccionada} onConfirm={confirmarIniciarCita} />
       <DetallesVisitaModal
         show={showDetalles} onClose={() => setShowDetalles(false)}
@@ -1427,6 +2290,13 @@ export default function AsesorCitasPage() {
         clientes={clientes}
       />
       <ReprogramarModal show={showReprogramar} onClose={() => setShowReprogramar(false)} cita={citaSeleccionada} onSave={handleReprogramar} />
+      <EditarVisitaModal
+        show={showEditar}
+        onClose={() => setShowEditar(false)}
+        cita={citaSeleccionada}
+        clientes={clientes}
+        onSave={handleGuardarEdicion}
+      />
     </LayoutDashboard>
   );
 }
