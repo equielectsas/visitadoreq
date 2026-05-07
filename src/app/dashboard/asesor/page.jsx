@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import LayoutDashboard from "@/components/LayoutDashboard";
+import VisualizarVisitaModal, { EstadoBadge } from "@/components/VisualizarVisitaModal";
+import { fechaHoraCierreLocal, fechaHoraVisualDesdeVisita, normalizarVisitaAsesorNombre } from "@/utils/visitasHelpers";
 import { MUNICIPIOS_COLOMBIA } from "@/utils/municipiosColombia";
 import { chequeoCumpleParaCerrarVisita } from "@/utils/chequeoVehiculoStorage";
 
@@ -128,13 +130,6 @@ const TIPO_VISITA = [
   "Especificación de producto",
 ];
 
-const ESTADO_CONFIG = {
-  pendiente:    { label: "Pendiente",    cls: "bg-yellow-100 text-yellow-700"   },
-  activa:       { label: "Activa",       cls: "bg-emerald-100 text-emerald-700" },
-  realizada:    { label: "Realizada",    cls: "bg-blue-100 text-blue-700"       },
-  reprogramada: { label: "Reprogramada", cls: "bg-purple-100 text-purple-700"   },
-};
-
 function normalizarNombreEmpresa(s) {
   return (s || "").trim().toLowerCase().replace(/\s+/g, " ");
 }
@@ -218,97 +213,6 @@ function ReadonlyField({ label, value }) {
         {value || "—"}
       </div>
     </div>
-  );
-}
-
-function VisualizarVisitaModal({ show, onClose, cita }) {
-  if (!show) return null;
-  const dv = cita?.datosVisita || {};
-  const tareas = Array.isArray(dv?.tareasPendientes) ? dv.tareasPendientes : [];
-  const coords = dv?.geoCoords || null;
-
-  return (
-    <Modal show={show} onClose={onClose} wide>
-      <div className="p-6">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest">Visita</p>
-            <h2 className="text-xl font-black text-[#1C355E] truncate">
-              {dv?.nombreEmpresa || cita?.cliente || "—"}
-            </h2>
-            <div className="mt-2 flex items-center gap-2 flex-wrap">
-              <EstadoBadge estado={cita?.estado} />
-              {cita?.fecha && (
-                <span className="text-xs text-gray-400 font-semibold flex items-center gap-1">
-                  <CalIcon /> {cita.fecha}{cita?.hora ? ` · ${cita.hora}` : ""}
-                </span>
-              )}
-              {cita?.estado === "reprogramada" && cita?.motivoReprogramacion && (
-                <span className="text-xs text-purple-600 font-semibold">· {cita.motivoReprogramacion}</span>
-              )}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-10 h-10 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center flex-shrink-0"
-            aria-label="Cerrar"
-          >
-            <CloseIcon />
-          </button>
-        </div>
-
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <ReadonlyField label="Asesor" value={cita?.asesorNombre} />
-          <ReadonlyField label="ID" value={cita?.id || cita?._id} />
-          <ReadonlyField label="NIT" value={dv?.nit} />
-          <ReadonlyField label="Encargado" value={dv?.nombreEncargado} />
-          <ReadonlyField label="Cargo encargado" value={dv?.cargoEncargado} />
-          <ReadonlyField label="Tipo de visita" value={dv?.tipoVisita} />
-          <ReadonlyField label="Municipio" value={dv?.municipio} />
-          <ReadonlyField label="Dirección" value={dv?.direccionEmpresa} />
-          <ReadonlyField label="Vehículo" value={dv?.tipoVehiculo} />
-        </div>
-
-        <div className="mt-4">
-          <ReadonlyField label="Observaciones" value={dv?.observaciones} />
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <ReadonlyField label="Latitud" value={coords?.lat != null ? String(coords.lat) : ""} />
-          <ReadonlyField label="Longitud" value={coords?.lng != null ? String(coords.lng) : ""} />
-        </div>
-
-        <div className="mt-6">
-          <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest mb-2">Tareas pendientes</p>
-          {tareas.length > 0 ? (
-            <div className="space-y-2">
-              {tareas.map((t, idx) => (
-                <div key={idx} className="flex items-start gap-2 px-4 py-3 rounded-xl border border-gray-100 bg-gray-50">
-                  <span className={`mt-0.5 text-xs font-black ${t?.done ? "text-emerald-600" : "text-gray-400"}`}>
-                    {t?.done ? "✓" : "•"}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-700 break-words">{t?.texto || "—"}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-400">—</p>
-          )}
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-function EstadoBadge({ estado }) {
-  const cfg = ESTADO_CONFIG[estado] || ESTADO_CONFIG.pendiente;
-  return (
-    <span className={`text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full ${cfg.cls}`}>
-      {cfg.label}
-    </span>
   );
 }
 
@@ -1438,16 +1342,19 @@ function VisitasPasadasModal({ show, onClose, empresa, visitasFinalizadas }) {
           <div className="text-center py-12 text-gray-400"><p className="text-3xl mb-3">📋</p><p className="text-sm">No hay visitas previas para esta empresa</p></div>
         ) : (
           <div className="space-y-3">
-            {pasadas.map(v => (
-              <div key={v.id} className="border border-gray-100 rounded-2xl p-4 space-y-2">
+            {pasadas.map((v) => {
+              const pv = fechaHoraVisualDesdeVisita(v);
+              return (
+              <div key={v.id || v._id} className="border border-gray-100 rounded-2xl p-4 space-y-2">
                 <div className="flex items-center justify-between"><span className="text-sm font-bold text-gray-800">{v.datosVisita?.tipoVisita || "Visita"}</span><span className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-semibold">Realizada</span></div>
                 <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
-                  <span>📅 {v.fecha} {v.hora}</span><span>📍 {v.datosVisita?.municipio || "—"}</span>
+                  <span>📅 {pv.fecha} {pv.hora}</span><span>📍 {v.datosVisita?.municipio || "—"}</span>
                   <span>🚗 {v.datosVisita?.tipoVehiculo || "—"}</span><span>🧑‍💼 {v.asesorNombre}</span>
                 </div>
                 {v.datosVisita?.observaciones && <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 border-l-2 border-[#FFCD00]">{v.datosVisita.observaciones}</p>}
               </div>
-            ))}
+            );
+            })}
           </div>
         )}
       </div>
@@ -2148,7 +2055,7 @@ export default function AsesorCitasPage() {
       const json = await res.json().catch(() => ({}));
       // backend puede responder { data, total, ... } o { visitas }
       const list = Array.isArray(json?.visitas) ? json.visitas : Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
-      if (res.ok) setCitas(list);
+      if (res.ok) setCitas(list.map(normalizarVisitaAsesorNombre));
       else setCitas([]);
       notifyVisitasUpdated();
     } catch {
@@ -2199,10 +2106,16 @@ export default function AsesorCitasPage() {
     (async () => {
       const token = getToken();
       const base = process.env.NEXT_PUBLIC_API_URL || "";
+      const { fecha, hora } = fechaHoraCierreLocal();
       await fetch(`${base.replace(/\/$/, "")}/visitas/${citaSeleccionada._id}/finalizar`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: token },
-        body: JSON.stringify({ datosVisita, estadoFinal: "realizada" }),
+        body: JSON.stringify({
+          datosVisita,
+          estadoFinal: "realizada",
+          fecha,
+          hora,
+        }),
       }).catch(() => {});
       await fetchCitas();
       setCitaSeleccionada(null);
@@ -2330,7 +2243,9 @@ export default function AsesorCitasPage() {
               <button onClick={() => setShowCrear(true)} className="mt-4 px-5 py-2.5 rounded-xl bg-[#FFCD00] text-[#1C355E] text-sm font-bold hover:bg-yellow-400">Crear visita</button>
             </div>
           )}
-          {filtered.map((cita, i) => (
+          {filtered.map((cita, i) => {
+            const cv = fechaHoraVisualDesdeVisita(cita);
+            return (
             <div key={cita._id || i}
               className="bg-white rounded-2xl border border-gray-100 p-5 flex items-center justify-between gap-4 hover:border-gray-200 hover:shadow-sm transition-all">
               <div className="flex items-center gap-4 min-w-0">
@@ -2338,8 +2253,8 @@ export default function AsesorCitasPage() {
                 <div className="min-w-0">
                   <p className="font-bold text-gray-800 truncate">{cita.datosVisita?.nombreEmpresa || "—"}</p>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-gray-400">
-                    <span className="flex items-center gap-1"><CalIcon /> {cita.fecha}</span>
-                    {cita.hora && <span>· {cita.hora}</span>}
+                    <span className="flex items-center gap-1"><CalIcon /> {cv.fecha}</span>
+                    {cv.hora && <span>· {cv.hora}</span>}
                     {cita.estado === "reprogramada" && cita.motivoReprogramacion && <span className="text-purple-500 font-medium">· {cita.motivoReprogramacion}</span>}
                   </div>
                 </div>
@@ -2383,7 +2298,8 @@ export default function AsesorCitasPage() {
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -2414,6 +2330,7 @@ export default function AsesorCitasPage() {
         show={showVer}
         onClose={() => setShowVer(false)}
         cita={citaSeleccionada}
+        asesorFallbackNombre={user?.nombre}
       />
     </LayoutDashboard>
   );
