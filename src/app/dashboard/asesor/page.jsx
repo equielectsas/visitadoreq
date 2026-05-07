@@ -31,6 +31,16 @@ const ReprogramarIcon = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 12v4l2 2" />
   </svg>
 );
+const EyeIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+    />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+  </svg>
+);
 const CloseIcon = () => (
   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -208,6 +218,88 @@ function ReadonlyField({ label, value }) {
         {value || "—"}
       </div>
     </div>
+  );
+}
+
+function VisualizarVisitaModal({ show, onClose, cita }) {
+  if (!show) return null;
+  const dv = cita?.datosVisita || {};
+  const tareas = Array.isArray(dv?.tareasPendientes) ? dv.tareasPendientes : [];
+  const coords = dv?.geoCoords || null;
+
+  return (
+    <Modal show={show} onClose={onClose} wide>
+      <div className="p-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest">Visita</p>
+            <h2 className="text-xl font-black text-[#1C355E] truncate">
+              {dv?.nombreEmpresa || cita?.cliente || "—"}
+            </h2>
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
+              <EstadoBadge estado={cita?.estado} />
+              {cita?.fecha && (
+                <span className="text-xs text-gray-400 font-semibold flex items-center gap-1">
+                  <CalIcon /> {cita.fecha}{cita?.hora ? ` · ${cita.hora}` : ""}
+                </span>
+              )}
+              {cita?.estado === "reprogramada" && cita?.motivoReprogramacion && (
+                <span className="text-xs text-purple-600 font-semibold">· {cita.motivoReprogramacion}</span>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-10 h-10 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center flex-shrink-0"
+            aria-label="Cerrar"
+          >
+            <CloseIcon />
+          </button>
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <ReadonlyField label="Asesor" value={cita?.asesorNombre} />
+          <ReadonlyField label="ID" value={cita?.id || cita?._id} />
+          <ReadonlyField label="NIT" value={dv?.nit} />
+          <ReadonlyField label="Encargado" value={dv?.nombreEncargado} />
+          <ReadonlyField label="Cargo encargado" value={dv?.cargoEncargado} />
+          <ReadonlyField label="Tipo de visita" value={dv?.tipoVisita} />
+          <ReadonlyField label="Municipio" value={dv?.municipio} />
+          <ReadonlyField label="Dirección" value={dv?.direccionEmpresa} />
+          <ReadonlyField label="Vehículo" value={dv?.tipoVehiculo} />
+        </div>
+
+        <div className="mt-4">
+          <ReadonlyField label="Observaciones" value={dv?.observaciones} />
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <ReadonlyField label="Latitud" value={coords?.lat != null ? String(coords.lat) : ""} />
+          <ReadonlyField label="Longitud" value={coords?.lng != null ? String(coords.lng) : ""} />
+        </div>
+
+        <div className="mt-6">
+          <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest mb-2">Tareas pendientes</p>
+          {tareas.length > 0 ? (
+            <div className="space-y-2">
+              {tareas.map((t, idx) => (
+                <div key={idx} className="flex items-start gap-2 px-4 py-3 rounded-xl border border-gray-100 bg-gray-50">
+                  <span className={`mt-0.5 text-xs font-black ${t?.done ? "text-emerald-600" : "text-gray-400"}`}>
+                    {t?.done ? "✓" : "•"}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-700 break-words">{t?.texto || "—"}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400">—</p>
+          )}
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -2025,6 +2117,7 @@ export default function AsesorCitasPage() {
   const [showDetalles, setShowDetalles]       = useState(false);
   const [showReprogramar, setShowReprogramar] = useState(false);
   const [showEditar, setShowEditar]           = useState(false);
+  const [showVer, setShowVer]                 = useState(false);
   const [citaSeleccionada, setCitaSeleccionada] = useState(null);
 
   const visitasFinalizadas = citas.filter(c => c.estado === "realizada");
@@ -2150,7 +2243,12 @@ export default function AsesorCitasPage() {
   const visitasAbiertasCount = myCitas.filter((c) =>
     ["pendiente", "activa", "reprogramada"].includes(c.estado)
   ).length;
-  const filtered = filtro === "todos" ? myCitas : myCitas.filter(c => c.estado === filtro);
+  const filtered =
+    filtro === "todos"
+      ? myCitas
+      : filtro === "pendiente"
+        ? myCitas.filter((c) => ["pendiente", "activa", "reprogramada"].includes(c.estado))
+        : myCitas.filter((c) => c.estado === filtro);
   const stats    = {
     pendientes: myCitas.filter(c => c.estado === "pendiente").length,
     activas:    myCitas.filter(c => c.estado === "activa").length,
@@ -2203,11 +2301,18 @@ export default function AsesorCitasPage() {
         </div>
 
         <div className="fade-up fade-up-2 flex items-center gap-2 flex-wrap">
-          {["todos","pendiente","activa","realizada","reprogramada"].map(f => (
-            <button key={f} onClick={() => setFiltro(f)}
+          {[
+            { v: "todos", label: "Todas" },
+            { v: "pendiente", label: "Pendientes" },
+            { v: "realizada", label: "Realizadas" },
+          ].map((opt) => (
+            <button
+              key={opt.v}
+              onClick={() => setFiltro(opt.v)}
               className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all
-                ${filtro === f ? "bg-[#1C355E] text-white shadow-lg shadow-[#1C355E]/25" : "bg-white text-gray-500 border border-gray-200 hover:border-gray-300 hover:bg-gray-50"}`}>
-              {f === "todos" ? "Todas" : f.charAt(0).toUpperCase() + f.slice(1)}
+                ${filtro === opt.v ? "bg-[#1C355E] text-white shadow-lg shadow-[#1C355E]/25" : "bg-white text-gray-500 border border-gray-200 hover:border-gray-300 hover:bg-gray-50"}`}
+            >
+              {opt.label}
             </button>
           ))}
         </div>
@@ -2241,6 +2346,14 @@ export default function AsesorCitasPage() {
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <EstadoBadge estado={cita.estado} />
+                <button
+                  type="button"
+                  onClick={() => { setCitaSeleccionada(cita); setShowVer(true); }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 text-xs font-bold hover:bg-gray-50 hover:border-[#1C355E]/30 hover:text-[#1C355E] active:scale-[.97] transition-all"
+                  title="Ver visita"
+                >
+                  <EyeIcon /> Ver
+                </button>
                 {(cita.estado === "pendiente" || cita.estado === "reprogramada") && (
                   <button
                     type="button"
@@ -2296,6 +2409,11 @@ export default function AsesorCitasPage() {
         cita={citaSeleccionada}
         clientes={clientes}
         onSave={handleGuardarEdicion}
+      />
+      <VisualizarVisitaModal
+        show={showVer}
+        onClose={() => setShowVer(false)}
+        cita={citaSeleccionada}
       />
     </LayoutDashboard>
   );

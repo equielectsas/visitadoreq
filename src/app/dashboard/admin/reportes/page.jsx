@@ -86,6 +86,33 @@ function StatCard({ label, value, accent, icon }) {
   );
 }
 
+function EstadosCard({ stats }) {
+  const items = [
+    { k: "pendientes", label: "Pendientes", value: stats.pendientes, dot: "bg-[#FFCD00]" },
+    { k: "activas", label: "Activas", value: stats.activas, dot: "bg-emerald-400" },
+    { k: "reprogramadas", label: "Reprogramadas", value: stats.reprogramadas, dot: "bg-purple-400" },
+  ];
+  return (
+    <div className="bg-white rounded-2xl p-5 overflow-hidden border border-gray-100 shadow-[0_2px_16px_-4px_rgba(28,53,94,0.08)]">
+      <p className="text-xs font-semibold text-[#98989A] uppercase tracking-widest mb-3">Estados (detalle)</p>
+      <div className="space-y-2">
+        {items.map((it) => (
+          <div key={it.k} className="flex items-center justify-between">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className={`w-2.5 h-2.5 rounded-full ${it.dot}`} />
+              <span className="text-sm font-semibold text-gray-700 truncate">{it.label}</span>
+            </div>
+            <span className="text-sm font-black text-[#1C355E] tabular-nums">{it.value}</span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-[11px] text-gray-400 font-medium">
+        Aquí solo se agrupan los estados no finalizados (pendiente/activa/reprogramada).
+      </p>
+    </div>
+  );
+}
+
 async function downloadExcel(rows, filename) {
   if (!window.XLSX) {
     await new Promise((resolve, reject) => {
@@ -188,6 +215,37 @@ export default function ReportesPage() {
     return true;
   });
 
+  const filteredRealizadas = filtered.filter((c) => c.estado === "realizada");
+
+  const isReporteRowCompleta = (c) => {
+    const cliente = c?.datosVisita?.nombreEmpresa || c?.cliente;
+    const objetivo = c?.datosVisita?.tipoVisita; // requerido: objetivo sale de "tipo de visita" (punto 3)
+    const municipio = c?.datosVisita?.municipio;
+    const direccion = c?.datosVisita?.direccionEmpresa;
+    const vehiculo = c?.datosVisita?.tipoVehiculo;
+    return Boolean(c?.asesorNombre && c?.fecha && cliente && objetivo && municipio && direccion && vehiculo);
+  };
+
+  const reporteRealizadasCompletas = filteredRealizadas.filter(isReporteRowCompleta);
+  const reporteRealizadasIncompletasCount = filteredRealizadas.length - reporteRealizadasCompletas.length;
+
+  const reportePorAsesor = (() => {
+    const map = new Map();
+    for (const c of reporteRealizadasCompletas) {
+      const key = c.asesorNombre || "—";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(c);
+    }
+    const asesoresOrdenados = [...map.keys()].sort((a, b) => a.localeCompare(b, "es"));
+    return asesoresOrdenados.map((asesor) => {
+      const visitas = map
+        .get(asesor)
+        .slice()
+        .sort((a, b) => String(a?.fecha || "").localeCompare(String(b?.fecha || ""), "es"));
+      return { asesor, count: visitas.length, visitas };
+    });
+  })();
+
   const goal = isAdmin ? 95 : 10;
   const realizadas = baseCitasMes.filter((c) => c.estado === "realizada").length;
   const cumplimientoPct = goal > 0 ? (realizadas / goal) * 100 : 0;
@@ -197,6 +255,7 @@ export default function ReportesPage() {
     total: baseCitasMes.length,
     realizadas,
     pendientes: baseCitasMes.filter((c) => c.estado === "pendiente").length,
+    activas: baseCitasMes.filter((c) => c.estado === "activa").length,
     reprogramadas: baseCitasMes.filter((c) => c.estado === "reprogramada").length,
   };
 
@@ -310,12 +369,19 @@ export default function ReportesPage() {
           )}
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-7">
-          <StatCard label="Total visitas" value={stats.total} accent="bg-[#1C355E]" icon={<FileIcon />} />
-          <StatCard label="Realizadas" value={stats.realizadas} accent="bg-blue-400" icon={<CalIcon />} />
-          <StatCard label="Pendientes" value={stats.pendientes} accent="bg-[#FFCD00]" icon={<CalIcon />} />
-          <StatCard label="Reprogramadas" value={stats.reprogramadas} accent="bg-purple-400" icon={<CalIcon />} />
-        </div>
+        {isAsesor ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-7">
+            <StatCard label="Visitas realizadas" value={stats.realizadas} accent="bg-blue-400" icon={<CalIcon />} />
+            <EstadosCard stats={stats} />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-7">
+            <StatCard label="Total visitas" value={stats.total} accent="bg-[#1C355E]" icon={<FileIcon />} />
+            <StatCard label="Realizadas" value={stats.realizadas} accent="bg-blue-400" icon={<CalIcon />} />
+            <StatCard label="Pendientes" value={stats.pendientes} accent="bg-[#FFCD00]" icon={<CalIcon />} />
+            <StatCard label="Reprogramadas" value={stats.reprogramadas} accent="bg-purple-400" icon={<CalIcon />} />
+          </div>
+        )}
 
         <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_2px_16px_-4px_rgba(28,53,94,0.08)] p-5 mb-7">
           <div className="flex items-center gap-2 mb-4">
@@ -398,7 +464,7 @@ export default function ReportesPage() {
             <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest mb-3">Descargar por asesor</p>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {asesores.map((nombre) => {
-                const count = allCitas.filter((c) => c.asesorNombre === nombre).length;
+                const count = filteredRealizadas.filter((c) => c.asesorNombre === nombre).length;
                 return (
                   <button
                     key={nombre}
@@ -412,12 +478,86 @@ export default function ReportesPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-bold text-gray-700 truncate">{nombre}</p>
-                      <p className="text-xs text-gray-400">{count} visitas (todas)</p>
+                      <p className="text-xs text-gray-400">{count} realizadas (en rango)</p>
                     </div>
                     <DownloadIcon />
                   </button>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {isAdmin && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_2px_16px_-4px_rgba(28,53,94,0.08)] overflow-hidden mb-7">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest">Reporte (Realizadas)</p>
+              <p className="text-base font-black text-[#1C355E]">
+                {reporteRealizadasCompletas.length} visita{reporteRealizadasCompletas.length !== 1 ? "s" : ""} realizada
+                {reporteRealizadasCompletas.length !== 1 ? "s" : ""} (con campos completos) en el rango seleccionado
+              </p>
+            </div>
+
+            {reporteRealizadasIncompletasCount > 0 && (
+              <div className="px-6 py-4 border-b border-amber-200 bg-amber-50 text-sm text-amber-800 font-semibold">
+                Hay {reporteRealizadasIncompletasCount} visita
+                {reporteRealizadasIncompletasCount !== 1 ? "s" : ""} realizada
+                {reporteRealizadasIncompletasCount !== 1 ? "s" : ""} en el rango que no tienen todos los campos requeridos
+                (Asesor, Fecha, Cliente, Tipo de visita, Municipio, Dirección, Vehículo) y por eso no aparecen en este reporte.
+              </div>
+            )}
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-[#F4F6FA]">
+                    {["# Visitas", "Asesor", "Fecha", "Cliente", "Objetivo de la visita", "Municipio - Dirección", "Vehículo"].map((h) => (
+                      <th
+                        key={h}
+                        className="text-left px-5 py-3 text-[11px] font-bold text-[#98989A] uppercase tracking-widest whitespace-nowrap"
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {reportePorAsesor.length > 0 ? (
+                    reportePorAsesor.map((g) =>
+                      g.visitas.map((c, idx) => {
+                        const cliente = c.datosVisita?.nombreEmpresa || c.cliente || "—";
+                        const objetivo = c.datosVisita?.tipoVisita || "—";
+                        const municipio = c.datosVisita?.municipio || "—";
+                        const direccion = c.datosVisita?.direccionEmpresa || "";
+                        const muniDir = direccion ? `${municipio} - ${direccion}` : municipio;
+                        const vehiculo = c.datosVisita?.tipoVehiculo || "—";
+
+                        return (
+                          <tr key={`${g.asesor}-${c.id || c.fecha || idx}`} className="hover:bg-[#F4F6FA]/60 transition-colors">
+                            <td className="px-5 py-3 text-xs font-black text-[#1C355E] whitespace-nowrap">
+                              {idx === 0 ? g.count : ""}
+                            </td>
+                            <td className="px-5 py-3 text-xs font-semibold text-gray-700 whitespace-nowrap">
+                              {idx === 0 ? g.asesor : ""}
+                            </td>
+                            <td className="px-5 py-3 text-xs text-gray-600 whitespace-nowrap">{c.fecha || "—"}</td>
+                            <td className="px-5 py-3 text-xs font-semibold text-[#1C355E]">{cliente}</td>
+                            <td className="px-5 py-3 text-xs text-gray-600 min-w-[380px]">{objetivo}</td>
+                            <td className="px-5 py-3 text-xs text-gray-600">{muniDir}</td>
+                            <td className="px-5 py-3 text-xs text-gray-600 whitespace-nowrap">{vehiculo}</td>
+                          </tr>
+                        );
+                      })
+                    )
+                  ) : (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-12 text-center text-[#98989A] text-sm">
+                        No hay visitas realizadas con los filtros actuales
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
