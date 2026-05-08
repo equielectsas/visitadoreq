@@ -2,6 +2,13 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import {
+  getNotificationsForUser,
+  markPlatformNotificationRead,
+  markAllPlatformNotificationsReadForUser,
+  formatNotifTime,
+  refreshVisitRemindersFromVisitas,
+} from "@/utils/platformNotifications";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const BellIcon = () => (
@@ -69,12 +76,6 @@ const NOTIF_ICONS = {
   sistema: { emoji: "⚙️", bg: "bg-gray-50",    text: "text-gray-600"   },
   exito:   { emoji: "✅", bg: "bg-emerald-50", text: "text-emerald-600" },
 };
-const INITIAL_NOTIFS = [
-  { id: 1, type: "cita",    title: "Cita pendiente",           body: "Tienes una cita con Empresa ABC mañana a las 10:00 AM",    time: "hace 5 min",  read: false },
-  { id: 2, type: "alerta",  title: "Visita sin finalizar",      body: "La visita a Ferretería López lleva más de 2 horas activa", time: "hace 30 min", read: false },
-  { id: 3, type: "exito",   title: "Cita realizada",            body: "La visita a Constructora Norte fue marcada como realizada",time: "hace 1h",     read: false },
-  { id: 4, type: "sistema", title: "Actualización del sistema", body: "La plataforma se actualizó a v2.4.1 con nuevas funciones", time: "hace 3h",     read: true  },
-];
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
 const GRADIENTS = [
@@ -284,19 +285,45 @@ export default function Topbar({ onMenuToggle }) {
   const [showNotifs, setShowNotifs] = useState(false);
   const [user, setUser]             = useState(null);
   const [visible, setVisible]       = useState(false);
-  const [notifs, setNotifs]         = useState(INITIAL_NOTIFS);
+  const [notifs, setNotifs]         = useState([]);
   const router   = useRouter();
   const dropRef  = useRef(null);
 
   const unreadCount = notifs.filter((n) => !n.read).length;
 
+  const loadNotifications = async () => {
+    const u = readUserFromStorage();
+    setUser(u);
+    const token =
+      typeof window !== "undefined"
+        ? localStorage.getItem("token") || u?.token
+        : null;
+    if (token && u) {
+      try {
+        const res = await fetch("/api/notificaciones?limit=80", { headers: { Authorization: token } });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && Array.isArray(data?.items)) {
+          setNotifs(data.items.map((n) => ({ ...n, time: formatNotifTime(n.createdAt) })));
+          return;
+        }
+      } catch {
+        /* fallback local */
+      }
+    }
+    const raw = getNotificationsForUser(u || {});
+    setNotifs(raw.map((n) => ({ ...n, time: formatNotifTime(n.createdAt) })));
+  };
+
   useEffect(() => {
-    setUser(readUserFromStorage());
+    void loadNotifications();
     setTimeout(() => setVisible(true), 50);
+    const onUpd = () => void loadNotifications();
+    window.addEventListener("platform-notifs-updated", onUpd);
+    return () => window.removeEventListener("platform-notifs-updated", onUpd);
   }, []);
 
   useEffect(() => {
-    const onFocus = () => setUser(readUserFromStorage());
+    const onFocus = () => void loadNotifications();
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, []);
@@ -319,8 +346,73 @@ export default function Topbar({ onMenuToggle }) {
     router.push("/auth/login");
   };
 
-  const handleMarkRead    = (id) => setNotifs((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
-  const handleMarkAllRead = ()   => setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
+  const handleMarkRead = async (id) => {
+    const u0 = readUserFromStorage();
+    const token = localStorage.getItem("token") || u0?.token;
+    if (token) {
+      try {
+        const res = await fetch(`/api/notificaciones/${encodeURIComponent(id)}/leida`, {
+          method: "PATCH",
+          headers: { Authorization: token },
+        });
+        if (res.ok) {
+          setNotifs((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+          return;
+        }
+      } catch {
+        /* fallback */
+      }
+    }
+    markPlatformNotificationRead(id);
+    void loadNotifications();
+  };
+  const handleMarkAllRead = async () => {
+    const u1 = readUserFromStorage();
+    const token = localStorage.getItem("token") || u1?.token;
+    if (token) {
+      try {
+        const res = await fetch("/api/notificaciones/marcar-todas-leidas", {
+          method: "PATCH",
+          headers: { Authorization: token },
+        });
+        if (res.ok) {
+          setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
+          return;
+        }
+      } catch {
+        /* fallback */
+      }
+    }
+    const u = readUserFromStorage();
+    if (u) markAllPlatformNotificationsReadForUser(u);
+    void loadNotifications();
+  };
+
+  useEffect(() => {
+    if (!user || user.rol !== "comercial") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = user.token || localStorage.getItem("token");
+        const params = new URLSearchParams({ page: "1", limit: "500" });
+        const res = await fetch(`/api/visitas?${params.toString()}`, {
+          headers: { Authorization: token },
+        });
+        const data = await res.json().catch(() => ({}));
+        const arr = Array.isArray(data?.visitas)
+          ? data.visitas
+          : Array.isArray(data?.data)
+            ? data.data
+            : [];
+        if (!cancelled) await refreshVisitRemindersFromVisitas(arr, user);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.rol, user?.cedula, user?.token]);
 
   const roleBadge = ROLE_STYLES[user?.rol] || ROLE_STYLES.default;
   const rolLabel  = ROL_DISPLAY[user?.rol] || user?.rol?.toUpperCase() || "USUARIO";
@@ -333,6 +425,7 @@ export default function Topbar({ onMenuToggle }) {
   return (
     <>
       <style>{`
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.65; } }
         @keyframes slideDown { from { opacity:0; transform:translateY(-8px) scale(.97); } to { opacity:1; transform:translateY(0) scale(1); } }
         @keyframes topbarIn  { from { opacity:0; transform:translateY(-100%); } to { opacity:1; transform:translateY(0); } }
         .topbar-in   { animation: topbarIn .35s cubic-bezier(.22,1,.36,1) forwards; }

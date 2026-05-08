@@ -14,5 +14,12 @@
     nombre: data.nombre,
     rol: data.rol,
   }));
+  try {
+    for (const key of Object.keys(sessionStorage)) {
+      if (key.startsWith("equielect_task_modal_dismiss_")) sessionStorage.removeItem(key);
+    }
+  } catch {
+    /* ignore */
+  }
   return { user: { cedula: data.cedula, nombre: data.nombre, rol: data.rol }, token: data.token };
 }

@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import LayoutDashboard from "@/components/LayoutDashboard";
+import { nombreAsesorDesdeVisita, normalizarVisitaAsesorNombre } from "@/utils/visitasHelpers";
+import { buildFilasReporteIndustrial, applyReporteExcelUppercase } from "@/utils/reporteVisitasExcel";
 
 function getToken() {
   try {
@@ -124,33 +126,11 @@ async function downloadExcel(rows, filename) {
     });
   }
   const XLSX = window.XLSX;
-  const ws = XLSX.utils.json_to_sheet(rows);
+  const data = applyReporteExcelUppercase(rows);
+  const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Reporte");
   XLSX.writeFile(wb, `${filename}.xlsx`);
-}
-
-function flattenCita(c) {
-  return {
-    ID: c.id,
-    Asesor: c.asesorNombre || "—",
-    "Cliente/Empresa": c.datosVisita?.nombreEmpresa || c.cliente || "—",
-    NIT: c.datosVisita?.nit || "—",
-    Encargado: c.datosVisita?.nombreEncargado || "—",
-    "Cargo encargado": c.datosVisita?.cargoEncargado || "—",
-    "Tipo visita": c.datosVisita?.tipoVisita || "—",
-    Municipio: c.datosVisita?.municipio || "—",
-    Transporte: c.datosVisita?.tipoVehiculo || "—",
-    Fecha: c.fecha || "—",
-    Hora: c.hora || "—",
-    Estado: c.estado || "—",
-    Observaciones: c.datosVisita?.observaciones || "—",
-    Lat: c.datosVisita?.geoCoords?.lat || "—",
-    Lng: c.datosVisita?.geoCoords?.lng || "—",
-    "Tareas Pendientes": (c.datosVisita?.tareasPendientes || [])
-      .map((t) => `[${t.done ? "✓" : " "}] ${t.texto}`)
-      .join(" | "),
-  };
 }
 
 export default function ReportesPage() {
@@ -174,7 +154,7 @@ export default function ReportesPage() {
       try {
         setLoadError("");
         const v = await fetchVisitas({ page: 1, limit: 500 });
-        if (mounted) setAllCitas(v);
+        if (mounted) setAllCitas(v.map(normalizarVisitaAsesorNombre));
       } catch (e) {
         if (mounted) setLoadError(e?.message || "No se pudieron cargar las visitas.");
       }
@@ -193,8 +173,10 @@ export default function ReportesPage() {
     return ymd.slice(0, 7);
   };
 
+  const getAsesorName = (c) => c?.asesorNombre || nombreAsesorDesdeVisita(c) || c?.asesorId || "—";
+
   const baseCitas = isAsesor
-    ? allCitas.filter((c) => c.asesorId === user?.id || c.asesorNombre === user?.nombre)
+    ? allCitas.filter((c) => c.asesorId === user?.id || getAsesorName(c) === user?.nombre)
     : allCitas;
 
   const months = [...new Set(baseCitas.map((c) => ymdToYearMonth(c?.fecha)).filter(Boolean))].sort().reverse();
@@ -205,7 +187,13 @@ export default function ReportesPage() {
 
   const baseCitasMes = selectedMonth ? baseCitas.filter((c) => ymdToYearMonth(c?.fecha) === selectedMonth) : baseCitas;
 
-  const asesores = [...new Set(allCitas.map((c) => c.asesorNombre).filter(Boolean))];
+  const asesores = [
+    ...new Set(
+      allCitas
+        .map((c) => getAsesorName(c))
+        .filter((x) => typeof x === "string" && x.trim())
+    ),
+  ];
 
   const filtered = baseCitasMes.filter((c) => {
     if (isAdmin && filtroAsesor !== "todos" && c.asesorNombre !== filtroAsesor) return false;
@@ -262,7 +250,7 @@ export default function ReportesPage() {
   const handleDownloadAsesor_Me = async () => {
     setLoading(true);
     try {
-      const rows = baseCitas.map(flattenCita);
+      const rows = buildFilasReporteIndustrial(baseCitas);
       const safe = (user?.nombre || "asesor").replace(/\s+/g, "_");
       await downloadExcel(rows, `Mis_Visitas_${safe}_${new Date().toISOString().split("T")[0]}`);
     } finally {
@@ -273,7 +261,7 @@ export default function ReportesPage() {
   const handleDownloadAll = async () => {
     setLoading(true);
     try {
-      const rows = filtered.map(flattenCita);
+      const rows = buildFilasReporteIndustrial(filtered);
       await downloadExcel(rows, `Reporte_Visitas_${new Date().toISOString().split("T")[0]}`);
     } finally {
       setLoading(false);
@@ -283,7 +271,7 @@ export default function ReportesPage() {
   const handleDownloadAsesor = async (nombre) => {
     setLoading(true);
     try {
-      const rows = allCitas.filter((c) => c.asesorNombre === nombre).map(flattenCita);
+      const rows = buildFilasReporteIndustrial(allCitas.filter((c) => getAsesorName(c) === nombre));
       const safe = nombre.replace(/\s+/g, "_");
       await downloadExcel(rows, `Reporte_${safe}_${new Date().toISOString().split("T")[0]}`);
     } finally {
@@ -588,7 +576,7 @@ export default function ReportesPage() {
                   filtered.slice(0, 50).map((c, i) => (
                     <tr key={c.id || i} className="hover:bg-[#F4F6FA]/60 transition-colors">
                       {isAdmin && (
-                        <td className="px-5 py-3 text-xs font-semibold text-gray-600">{c.asesorNombre || "—"}</td>
+                        <td className="px-5 py-3 text-xs font-semibold text-gray-600">{getAsesorName(c)}</td>
                       )}
                       <td className="px-5 py-3 font-semibold text-[#1C355E] truncate max-w-[160px]">
                         {c.datosVisita?.nombreEmpresa || c.cliente || "—"}

@@ -2,7 +2,6 @@
 const visitadorApi = process.env.VISITADOR_API_REWRITE_TARGET || "http://localhost:4000";
 const chequeoApi =
   process.env.CHEQUEO_API_REWRITE_TARGET ||
-  process.env.NEXT_PUBLIC_CHEQUEO_API_URL ||
   "http://localhost:3001";
 
 function normalizeChequeoTarget(raw) {

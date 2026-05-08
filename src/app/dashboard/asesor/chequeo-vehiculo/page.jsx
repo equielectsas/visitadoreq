@@ -149,6 +149,8 @@ export default function ChequeoVehiculoPage() {
       setError("No hay sesión. Vuelve a iniciar sesión.");
       return;
     }
+    const tokenTrim = String(token || "").trim();
+    const bearer = tokenTrim.toLowerCase().startsWith("bearer ") ? tokenTrim : `Bearer ${tokenTrim}`;
     const cedulaNum = Number(String(user?.cedula).replace(/\D/g, ""));
     if (!cedulaNum || cedulaNum < 10000) {
       setError("Tu cédula no cumple el formato requerido por el servidor (número ≥ 10000).");
@@ -182,17 +184,21 @@ export default function ChequeoVehiculoPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: token,
+          // Compatibilidad: algunos backends esperan el token "crudo" y otros "Bearer <token>"
+          Authorization: tokenTrim,
+          "X-Access-Token": tokenTrim,
+          "X-Authorization": bearer,
         },
         body: JSON.stringify(body),
       });
-      const data = await res.json().catch(() => ({}));
+      const rawText = await res.text().catch(() => "");
+      const data = rawText ? JSON.parse(rawText) : {};
       if (!res.ok) {
         const boomMsg =
           data?.output?.payload?.message ||
           (Array.isArray(data?.errors) && data.errors.map((e) => e.message).filter(Boolean).join("; "));
         throw new Error(
-          boomMsg || data.message || data.msg || `Error ${res.status}`
+          boomMsg || data.message || data.msg || (rawText && String(rawText).slice(0, 300)) || `Error ${res.status}`
         );
       }
       if (tipo === "moto") markChequeoEnviado(user, "Motocicleta");

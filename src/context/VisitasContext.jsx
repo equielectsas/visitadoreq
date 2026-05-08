@@ -10,7 +10,8 @@ export function VisitasProvider({ children }) {
 
   // ➕ crear visita
   const agregarVisita = (visita) => {
-    setVisitas((prev) => [...prev, visita]);
+    // La más nueva debe quedar arriba.
+    setVisitas((prev) => [visita, ...prev]);
   };
 
   // ✏️ actualizar visita

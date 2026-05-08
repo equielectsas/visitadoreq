@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import LayoutDashboard from "@/components/LayoutDashboard";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -127,6 +128,7 @@ function flattenCita(c) {
 // PAGE
 // ─────────────────────────────────────────────────────────────────────────────
 export default function ReportesPage() {
+  const router = useRouter();
   const [user, setUser]         = useState(null);
   const [allCitas, setAllCitas] = useState([]);
   const [loading, setLoading]   = useState(false);
@@ -146,6 +148,26 @@ export default function ReportesPage() {
 
   const isAsesor = user?.rol === "comercial";
   const isAdmin  = user?.rol === "adminComercial" || user?.rol === "adminPlataforma";
+
+  // Reportes ya no está habilitado para asesor: su descargable vive en Inicio.
+  useEffect(() => {
+    if (isAsesor) router.replace("/dashboard/asesor/inicio");
+  }, [isAsesor, router]);
+
+  if (isAsesor) {
+    return (
+      <LayoutDashboard>
+        <main className="flex-1 bg-[#F4F6FA] p-6 md:p-8 min-h-screen">
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+            <p className="text-sm font-bold text-[#1C355E]">Redirigiendo…</p>
+            <p className="text-xs text-gray-500 mt-1">
+              El descargable de tu resumen ahora está en <strong>Inicio</strong>.
+            </p>
+          </div>
+        </main>
+      </LayoutDashboard>
+    );
+  }
 
   // ─── DATA BASE ───
   // Asesor: SOLO sus propias visitas, TODAS sin excepción de estado

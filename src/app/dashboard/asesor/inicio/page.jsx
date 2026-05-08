@@ -12,6 +12,12 @@ import LayoutDashboard from "@/components/LayoutDashboard";
 import VisualizarVisitaModal from "@/components/VisualizarVisitaModal";
 import { getVisitaYmdCalendario, fechaHoraVisualDesdeVisita, normalizarVisitaAsesorNombre } from "@/utils/visitasHelpers";
 
+const DownloadIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+  </svg>
+);
+
 function getToken() {
   try {
     const u = JSON.parse(localStorage.getItem("user") || "null");
@@ -30,6 +36,40 @@ async function fetchVisitas() {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.message || `Error ${res.status}`);
   return Array.isArray(data?.visitas) ? data.visitas : Array.isArray(data?.data) ? data.data : [];
+}
+
+async function downloadExcel(rows, filename) {
+  if (!window.XLSX) {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+  const XLSX = window.XLSX;
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Resumen");
+  XLSX.writeFile(wb, `${filename}.xlsx`);
+}
+
+function flattenCita(c) {
+  const vis = fechaHoraVisualDesdeVisita(c);
+  return {
+    ID: c._id || c.id || "",
+    Empresa: c.datosVisita?.nombreEmpresa || c.cliente || "—",
+    NIT: c.datosVisita?.nit || "—",
+    Encargado: c.datosVisita?.nombreEncargado || "—",
+    Municipio: c.datosVisita?.municipio || "—",
+    "Tipo visita": c.datosVisita?.tipoVisita || "—",
+    Transporte: c.datosVisita?.tipoVehiculo || "—",
+    Fecha: vis.fecha || c.fecha || "—",
+    Hora: vis.hora || c.hora || "—",
+    Estado: c.estado || "—",
+    Observaciones: c.datosVisita?.observaciones || "—",
+  };
 }
 
 function ymdToYearMonth(ymd) {
@@ -379,7 +419,7 @@ export default function AsesorDashboard() {
         asesorFallbackNombre={user?.nombre}
       />
 
-      <main className="flex-1 bg-[#F4F6FA] p-6 md:p-8 min-h-screen">
+      <main className="flex-1 bg-[#F4F6FA] p-4 sm:p-6 md:p-8 min-h-screen">
         {error && (
           <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700 font-semibold">
             {error}
@@ -387,7 +427,7 @@ export default function AsesorDashboard() {
         )}
 
         {/* Title */}
-        <div className="fade-up fade-up-1 mb-7 flex items-center justify-between">
+        <div className="fade-up fade-up-1 mb-7 flex items-center justify-between flex-wrap gap-3">
           <div>
             <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest mb-0.5">Mi Panel</p>
             <h1 className="text-2xl font-black text-[#1C355E] leading-tight">
@@ -417,9 +457,27 @@ export default function AsesorDashboard() {
             </select>
           </div>
 
-          <div className="text-xs text-[#98989A] font-medium bg-white border border-gray-200 px-3 py-2 rounded-xl shadow-sm">
-            Objetivo: <span className="font-black text-[#1C355E]">{monthlyGoal}</span> visitas finalizadas · Cumplimiento{" "}
-            <span className="font-black text-[#1C355E]">{cumplimientoPctLabel}%</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="text-xs text-[#98989A] font-medium bg-white border border-gray-200 px-3 py-2 rounded-xl shadow-sm">
+              Objetivo: <span className="font-black text-[#1C355E]">{monthlyGoal}</span> visitas finalizadas · Cumplimiento{" "}
+              <span className="font-black text-[#1C355E]">{cumplimientoPctLabel}%</span>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                const safe = (user?.nombre || "asesor").replace(/\s+/g, "_");
+                const ym = selectedMonth || "sin_mes";
+                const rows = monthCitas.map(flattenCita);
+                await downloadExcel(rows, `Resumen_${safe}_${ym}_${new Date().toISOString().split("T")[0]}`);
+              }}
+              disabled={loading || monthCitas.length === 0}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1C355E] text-white text-xs font-bold
+                hover:bg-[#16294d] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[.98] transition-all shadow-md"
+              title="Descargar el resumen del mes seleccionado"
+            >
+              <DownloadIcon />
+              Descargar resumen ({monthCitas.length})
+            </button>
           </div>
         </div>
 

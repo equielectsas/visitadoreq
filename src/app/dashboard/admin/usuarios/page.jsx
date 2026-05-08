@@ -41,6 +41,8 @@ export default function UsuariosPage() {
   }, [load]);
 
   const usuariosFiltrados = usuarios.filter((u) => {
+    // Backstop: si el backend devuelve más roles por error, aquí no se muestran.
+    if (u?.rol !== "adminComercial" && u?.rol !== "comercial") return false;
     const q = busqueda.trim().toLowerCase();
     if (!q) return true;
     return (

@@ -2048,14 +2048,26 @@ export default function AsesorCitasPage() {
     try {
       const token = getToken();
       const params = new URLSearchParams({ page: "1", limit: "500" });
-      const base = process.env.NEXT_PUBLIC_API_URL || "";
-      const res = await fetch(`${base.replace(/\/$/, "")}/visitas?${params.toString()}`, {
+      const res = await fetch(`/api/visitas?${params.toString()}`, {
         headers: { Authorization: token },
       });
       const json = await res.json().catch(() => ({}));
       // backend puede responder { data, total, ... } o { visitas }
       const list = Array.isArray(json?.visitas) ? json.visitas : Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
-      if (res.ok) setCitas(list.map(normalizarVisitaAsesorNombre));
+      if (res.ok) {
+        const normalized = list.map(normalizarVisitaAsesorNombre);
+        const toTime = (c) => {
+          // Realizadas: ordenar por cierre; resto por fecha/hora programada.
+          const fallbackYmd = typeof c?.fecha === "string" ? c.fecha : "";
+          const fallbackHm = typeof c?.hora === "string" ? c.hora : "";
+          const ymdHm = `${fallbackYmd}T${fallbackHm || "00:00"}:00`;
+          const fallbackMs = Date.parse(ymdHm);
+          const ms = c?.estado === "realizada" && c?.finishedAt ? Date.parse(c.finishedAt) : fallbackMs;
+          return Number.isFinite(ms) ? ms : 0;
+        };
+        normalized.sort((a, b) => toTime(b) - toTime(a)); // más nueva → más vieja
+        setCitas(normalized);
+      }
       else setCitas([]);
       notifyVisitasUpdated();
     } catch {
@@ -2073,8 +2085,7 @@ export default function AsesorCitasPage() {
 
   const handleCrearCita = async (payload) => {
     const token = getToken();
-    const base = process.env.NEXT_PUBLIC_API_URL || "";
-    const res = await fetch(`${base.replace(/\/$/, "")}/visitas`, {
+    const res = await fetch(`/api/visitas`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: token },
       body: JSON.stringify({
@@ -2093,8 +2104,7 @@ export default function AsesorCitasPage() {
     setShowIniciar(false);
     (async () => {
       const token = getToken();
-      const base = process.env.NEXT_PUBLIC_API_URL || "";
-      await fetch(`${base.replace(/\/$/, "")}/visitas/${citaSeleccionada._id}/iniciar`, {
+      await fetch(`/api/visitas/${citaSeleccionada._id}/iniciar`, {
         method: "PATCH",
         headers: { Authorization: token },
       }).catch(() => {});
@@ -2105,9 +2115,8 @@ export default function AsesorCitasPage() {
   const handleFinalizarVisita = (datosVisita) => {
     (async () => {
       const token = getToken();
-      const base = process.env.NEXT_PUBLIC_API_URL || "";
       const { fecha, hora } = fechaHoraCierreLocal();
-      await fetch(`${base.replace(/\/$/, "")}/visitas/${citaSeleccionada._id}/finalizar`, {
+      await fetch(`/api/visitas/${citaSeleccionada._id}/finalizar`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: token },
         body: JSON.stringify({
@@ -2124,8 +2133,7 @@ export default function AsesorCitasPage() {
   const handleReprogramar = ({ fecha, hora, motivo }) => {
     (async () => {
       const token = getToken();
-      const base = process.env.NEXT_PUBLIC_API_URL || "";
-      await fetch(`${base.replace(/\/$/, "")}/visitas/${citaSeleccionada._id}/reprogramar`, {
+      await fetch(`/api/visitas/${citaSeleccionada._id}/reprogramar`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: token },
         body: JSON.stringify({ fecha, hora, motivo }),
@@ -2137,11 +2145,10 @@ export default function AsesorCitasPage() {
   const handleGuardarEdicion = (payload) => {
     (async () => {
       const token = getToken();
-      const base = process.env.NEXT_PUBLIC_API_URL || "";
       // editar solo fecha/hora/cliente antes de iniciar -> backend no trae endpoint dedicado,
       // reusamos reprogramar si cambia fecha/hora, y si cambia empresa se recrea (por ahora).
       if (payload?.fecha || payload?.hora) {
-        await fetch(`${base.replace(/\/$/, "")}/visitas/${citaSeleccionada._id}/reprogramar`, {
+        await fetch(`/api/visitas/${citaSeleccionada._id}/reprogramar`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", Authorization: token },
           body: JSON.stringify({ fecha: payload.fecha, hora: payload.hora, motivo: "Edición" }),

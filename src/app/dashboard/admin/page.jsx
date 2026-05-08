@@ -1,14 +1,20 @@
 "use client";
 
 /**
- * /dashboard/programador/page.jsx  (también aplica para /dashboard/admin/page.jsx)
- * Dashboard GLOBAL para adminPlataforma y adminComercial.
- * Ve todas las citas de todos los asesores.
- * Citas finalizadas tienen ojo para ver detalles.
+ * /dashboard/admin/page.jsx
+ * Dashboard GLOBAL (adminPlataforma / adminComercial).
+ * Misma interfaz del asesor, pero agregada para TODOS los asesores.
  */
 
-import { useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import LayoutDashboard from "@/components/LayoutDashboard";
+import VisualizarVisitaModal from "@/components/VisualizarVisitaModal";
+import {
+  getVisitaYmdCalendario,
+  fechaHoraVisualDesdeVisita,
+  nombreAsesorDesdeVisita,
+  normalizarVisitaAsesorNombre,
+} from "@/utils/visitasHelpers";
 
 function getToken() {
   try {
@@ -33,6 +39,62 @@ async function fetchVisitas({ page = 1, limit = 500 } = {}) {
   return [];
 }
 
+async function downloadExcel(rows, filename) {
+  if (!window.XLSX) {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+  const XLSX = window.XLSX;
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Resumen");
+  XLSX.writeFile(wb, `${filename}.xlsx`);
+}
+
+function flattenCitaAdmin(c) {
+  const vis = fechaHoraVisualDesdeVisita(c);
+  return {
+    ID: c._id || c.id || "",
+    Empresa: c.datosVisita?.nombreEmpresa || c.cliente || "—",
+    NIT: c.datosVisita?.nit || "—",
+    Encargado: c.datosVisita?.nombreEncargado || "—",
+    Municipio: c.datosVisita?.municipio || "—",
+    "Tipo visita": c.datosVisita?.tipoVisita || "—",
+    Transporte: c.datosVisita?.tipoVehiculo || "—",
+    Fecha: vis.fecha || c.fecha || "—",
+    Hora: vis.hora || c.hora || "—",
+    Estado: c.estado || "—",
+    Asesor: c.asesorNombre || nombreAsesorDesdeVisita(c) || "—",
+    Observaciones: c.datosVisita?.observaciones || "—",
+  };
+}
+
+function ymdToYearMonth(ymd) {
+  if (!ymd || typeof ymd !== "string" || ymd.length < 7) return "";
+  return ymd.slice(0, 7); // yyyy-mm
+}
+
+function ymLabel(ym) {
+  const [y, m] = String(ym).split("-").map((x) => Number(x));
+  if (!y || !m) return String(ym || "");
+  const d = new Date(y, m - 1, 1);
+  const label = d.toLocaleString("es-CO", { month: "long", year: "numeric" });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function ymShortLabel(ym) {
+  const [y, m] = String(ym).split("-").map((x) => Number(x));
+  if (!y || !m) return String(ym || "");
+  const d = new Date(y, m - 1, 1);
+  const s = d.toLocaleString("es-CO", { month: "short", year: "numeric" });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const CalIcon = () => (
   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -49,9 +111,14 @@ const ClockIcon = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
   </svg>
 );
-const UsersIcon = () => (
+const ActivityIcon = () => (
   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+  </svg>
+);
+const DownloadIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
   </svg>
 );
 const EyeIcon = () => (
@@ -60,14 +127,9 @@ const EyeIcon = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
   </svg>
 );
-const CloseIcon = () => (
-  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-  </svg>
-);
 
 // ── Stat Card ─────────────────────────────────────────────────────────────────
-function StatCard({ icon, label, value, sub, accent }) {
+function StatCard({ icon, label, value, sub, accent, trend }) {
   return (
     <div className="relative bg-white rounded-2xl p-5 overflow-hidden border border-gray-100
       shadow-[0_2px_16px_-4px_rgba(28,53,94,0.10)] hover:shadow-[0_6px_28px_-4px_rgba(28,53,94,0.16)] transition-shadow duration-300">
@@ -82,6 +144,12 @@ function StatCard({ icon, label, value, sub, accent }) {
           {icon}
         </div>
       </div>
+      {trend !== undefined && (
+        <div className={`mt-3 flex items-center gap-1 text-xs font-semibold ${trend >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+          <span>{trend >= 0 ? "↑" : "↓"}</span>
+          <span>{Math.abs(trend)}% vs mes anterior</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -89,9 +157,10 @@ function StatCard({ icon, label, value, sub, accent }) {
 // ── Badge ─────────────────────────────────────────────────────────────────────
 function Badge({ status }) {
   const map = {
-    activa:    "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
-    pendiente: "bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200",
-    realizada: "bg-blue-50 text-blue-700 ring-1 ring-blue-200",
+    activa:     "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
+    pendiente:  "bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200",
+    realizada:  "bg-blue-50 text-blue-700 ring-1 ring-blue-200",
+    reprogramada: "bg-purple-50 text-purple-700 ring-1 ring-purple-200",
   };
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold capitalize ${map[status] || "bg-gray-100 text-gray-600"}`}>
@@ -100,56 +169,118 @@ function Badge({ status }) {
   );
 }
 
-// ── Visit Detail Modal ────────────────────────────────────────────────────────
-function VisitDetailModal({ visit, onClose }) {
-  if (!visit) return null;
-  const fields = [
-    { label: "Cliente",     value: visit.cliente },
-    { label: "Asesor",      value: visit.asesorNombre || "—" },
-    { label: "Fecha",       value: visit.fecha },
-    { label: "Hora",        value: visit.hora },
-    { label: "Dirección",   value: visit.direccion   || "—" },
-    { label: "Teléfono",    value: visit.telefono    || "—" },
-    { label: "Contacto",    value: visit.contacto    || "—" },
-    { label: "Observación", value: visit.observacion || "—" },
-  ];
+function MonthlyStackedBars({ rows, highlightYm }) {
+  const maxTotal = Math.max(1, ...rows.map((r) => r.total));
+  const trackH = 280;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-gray-100 modal-in">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/60">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Detalle de visita</p>
-            <p className="text-base font-black text-gray-700">{visit.cliente}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge status={visit.estado} />
-            <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-gray-200 flex items-center justify-center transition-colors">
-              <CloseIcon />
-            </button>
-          </div>
-        </div>
-        <div className="p-6 grid grid-cols-2 gap-4">
-          {fields.map(({ label, value }) => (
-            <div key={label} className="space-y-1">
-              <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-300">{label}</p>
-              <div className="px-3 py-2.5 rounded-xl bg-gray-50 border border-dashed border-gray-200 text-sm font-medium text-gray-400">
-                {value}
+    <div className="overflow-x-auto pb-2 -mx-1">
+      <div className="flex items-end gap-5 px-2 pt-2" style={{ minWidth: Math.max(rows.length * 72, 320) }}>
+        {rows.length === 0 ? (
+          <p className="text-sm text-gray-400 py-20 w-full text-center">No hay visitas con fecha para mostrar el histórico.</p>
+        ) : (
+          rows.map((row) => {
+            const barH = Math.max(32, (row.total / maxTotal) * trackH);
+            const segs = [
+              { key: "realizadas", n: row.realizadas, color: "#60a5fa" },
+              { key: "pendientes", n: row.pendientes, color: "#facc15" },
+              { key: "activas", n: row.activas, color: "#34d399" },
+              { key: "reprogramadas", n: row.reprogramadas, color: "#c4b5fd" },
+            ].filter((s) => s.n > 0);
+            const hi = highlightYm && row.ym === highlightYm;
+            return (
+              <div key={row.ym} className="flex flex-col items-center gap-2 flex-1 min-w-[64px] max-w-[96px]">
+                <span className="text-xs font-black text-[#1C355E] tabular-nums leading-none">{row.total}</span>
+                <div
+                  className={`w-full flex flex-col justify-end rounded-2xl bg-gray-100/90 border border-gray-100 ${
+                    hi ? "ring-2 ring-[#1C355E] ring-offset-2 shadow-md" : ""
+                  }`}
+                  style={{ height: trackH }}
+                >
+                  <div className="flex flex-col w-full overflow-hidden rounded-2xl" style={{ height: barH }}>
+                    {segs.map((s) => (
+                      <div
+                        key={s.key}
+                        className="w-full min-h-[4px] transition-[flex] duration-500 ease-out"
+                        style={{ backgroundColor: s.color, flex: s.n }}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <span className="text-[10px] text-[#98989A] font-bold text-center leading-tight px-0.5">
+                  {ymShortLabel(row.ym)}
+                </span>
               </div>
-            </div>
-          ))}
-        </div>
-        <div className="px-6 pb-5">
-          <p className="text-[11px] text-gray-300 text-center">👁 Modo solo lectura — Visita finalizada</p>
-        </div>
+            );
+          })
+        )}
       </div>
     </div>
   );
 }
 
+// ── Donut chart (SVG) ─────────────────────────────────────────────────────────
+function DonutChart({ segments, size = 120 }) {
+  const total = segments.reduce((s, d) => s + d.value, 0);
+  if (total === 0) {
+    return (
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <circle cx={size / 2} cy={size / 2} r={size / 2 - 8} fill="none" stroke="#f3f4f6" strokeWidth={16} />
+        <text x="50%" y="50%" textAnchor="middle" dy="0.35em" className="text-xs fill-gray-300 font-bold">
+          0
+        </text>
+      </svg>
+    );
+  }
+
+  const r = size / 2 - 10;
+  const cx = size / 2;
+  const cy = size / 2;
+  const circumference = 2 * Math.PI * r;
+
+  let accumulated = 0;
+  const slices = segments.map((seg) => {
+    const frac = seg.value / total;
+    const offset = circumference * (1 - accumulated);
+    const dash = circumference * frac;
+    accumulated += frac;
+    return { ...seg, offset, dash };
+  });
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#f3f4f6" strokeWidth={14} />
+      {slices.map((s, i) => (
+        <circle
+          key={i}
+          cx={cx}
+          cy={cy}
+          r={r}
+          fill="none"
+          stroke={s.color}
+          strokeWidth={14}
+          strokeDasharray={`${s.dash} ${circumference - s.dash}`}
+          strokeDashoffset={-s.offset + circumference}
+          strokeLinecap="butt"
+          style={{ transition: `stroke-dasharray 0.7s ease ${i * 0.15}s` }}
+        />
+      ))}
+      <text
+        x={cx}
+        y={cy}
+        textAnchor="middle"
+        dy="0.35em"
+        className="fill-[#1C355E] font-black text-lg"
+        style={{ fontSize: "18px", fontWeight: 900, transform: `rotate(90deg)`, transformOrigin: `${cx}px ${cy}px` }}
+      >
+        {total}
+      </text>
+    </svg>
+  );
+}
+
 export default function AdminDashboard() {
-  const [allCitas, setAllCitas]   = useState([]);
-  const [activeTab, setActiveTab] = useState("todos");
+  const [allCitas, setAllCitas] = useState([]);
+  const [activeTab, setActiveTab] = useState("todas");
   const [selectedVisit, setSelectedVisit] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -162,7 +293,11 @@ export default function AdminDashboard() {
         setLoading(true);
         setError("");
         const v = await fetchVisitas({ page: 1, limit: 500 });
-        if (mounted) setAllCitas(v);
+        const norm = v.map(normalizarVisitaAsesorNombre);
+        if (!mounted) return;
+        setAllCitas(norm);
+        const months = [...new Set(norm.map((c) => ymdToYearMonth(getVisitaYmdCalendario(c))).filter(Boolean))].sort().reverse();
+        setSelectedMonth((prev) => prev || months[0] || "");
       } catch (e) {
         if (mounted) setError(e?.message || "No se pudieron cargar las visitas.");
       } finally {
@@ -174,61 +309,85 @@ export default function AdminDashboard() {
     };
   }, []);
 
-  const tabs = ["todos", "activa", "pendiente", "realizada"];
-  const filtered = activeTab === "todos"
-    ? allCitas
-    : allCitas.filter((c) => c.estado === activeTab);
+  const months = useMemo(() => {
+    return [...new Set(allCitas.map((c) => ymdToYearMonth(getVisitaYmdCalendario(c))).filter(Boolean))].sort().reverse();
+  }, [allCitas]);
 
-  // Unique advisors who have citas
-  const uniqueAsesores = [...new Set(allCitas.map((c) => c.asesorNombre).filter(Boolean))].length;
+  const monthlyBarsData = useMemo(() => {
+    const map = new Map();
+    for (const c of allCitas) {
+      const ym = ymdToYearMonth(getVisitaYmdCalendario(c));
+      if (!ym) continue;
+      if (!map.has(ym)) {
+        map.set(ym, { ym, total: 0, realizadas: 0, pendientes: 0, activas: 0, reprogramadas: 0 });
+      }
+      const r = map.get(ym);
+      r.total += 1;
+      if (c.estado === "realizada") r.realizadas += 1;
+      else if (c.estado === "pendiente") r.pendientes += 1;
+      else if (c.estado === "activa") r.activas += 1;
+      else if (c.estado === "reprogramada") r.reprogramadas += 1;
+    }
+    return [...map.values()].sort((a, b) => a.ym.localeCompare(b.ym));
+  }, [allCitas]);
 
-  const months = (() => {
-    return [...new Set(allCitas.map((c) => (typeof c?.fecha === "string" ? c.fecha.slice(0, 7) : "")).filter(Boolean))]
-      .sort()
-      .reverse();
-  })();
+  const monthCitas = useMemo(() => {
+    if (!selectedMonth) return [];
+    return allCitas.filter((c) => ymdToYearMonth(getVisitaYmdCalendario(c)) === selectedMonth);
+  }, [allCitas, selectedMonth]);
 
-  useEffect(() => {
-    if (!selectedMonth && months.length > 0) setSelectedMonth(months[0]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [months.length]);
+  const filtered = useMemo(() => {
+    if (activeTab === "todas") return monthCitas;
+    if (activeTab === "pendiente") return monthCitas.filter((c) => ["pendiente", "activa", "reprogramada"].includes(c.estado));
+    return monthCitas.filter((c) => c.estado === "realizada");
+  }, [monthCitas, activeTab]);
 
-  const monthCitas = selectedMonth
-    ? allCitas.filter((c) => typeof c?.fecha === "string" && c.fecha.slice(0, 7) === selectedMonth)
-    : allCitas;
+  const prevMonth = useMemo(() => {
+    if (!selectedMonth) return "";
+    const [y, m] = selectedMonth.split("-").map((x) => Number(x));
+    if (!y || !m) return "";
+    const d = new Date(y, m - 2, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }, [selectedMonth]);
 
-  const monthStats = {
-    total: monthCitas.length,
-    realizadas: monthCitas.filter((c) => c.estado === "realizada").length,
-    pendientes: monthCitas.filter((c) => c.estado === "pendiente").length,
-    activas: monthCitas.filter((c) => c.estado === "activa").length,
-    reprogramadas: monthCitas.filter((c) => c.estado === "reprogramada").length,
-  };
+  const prevMonthCitas = useMemo(() => {
+    if (!prevMonth) return [];
+    return allCitas.filter((c) => ymdToYearMonth(getVisitaYmdCalendario(c)) === prevMonth);
+  }, [allCitas, prevMonth]);
+
+  const monthStats = useMemo(() => {
+    const base = monthCitas;
+    return {
+      total: base.length,
+      realizadas: base.filter((c) => c.estado === "realizada").length,
+      pendientes: base.filter((c) => c.estado === "pendiente").length,
+      activas: base.filter((c) => c.estado === "activa").length,
+      reprogramadas: base.filter((c) => c.estado === "reprogramada").length,
+    };
+  }, [monthCitas]);
 
   const globalGoal = 95;
   const cumplimientoPct = globalGoal > 0 ? (monthStats.realizadas / globalGoal) * 100 : 0;
   const cumplimientoPctLabel = Number.isFinite(cumplimientoPct) ? Math.round(cumplimientoPct) : 0;
 
-  const monthLabels = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-  const thisYear = new Date().getFullYear();
-  const monthlyData = (() => {
-    const counts = new Array(12).fill(0);
-    for (const c of allCitas) {
-      const ymd = c?.fecha;
-      if (!ymd || typeof ymd !== "string" || ymd.length < 7) continue;
-      const y = Number(ymd.slice(0, 4));
-      const m = Number(ymd.slice(5, 7));
-      if (!Number.isFinite(y) || !Number.isFinite(m)) continue;
-      if (y !== thisYear) continue;
-      if (m >= 1 && m <= 12) counts[m - 1] += 1;
-    }
-    return counts.map((visitas, i) => ({ mes: monthLabels[i], visitas }));
-  })();
-  const maxBar = Math.max(1, ...monthlyData.map((d) => d.visitas));
+  const prevMonthTotal = prevMonthCitas.length;
+  const trendVsPrev = prevMonthTotal > 0 ? Math.round(((monthStats.total - prevMonthTotal) / prevMonthTotal) * 100) : undefined;
 
-  const RESOLVED_DATA = [
-    { label: "Realizadas", value: allCitas.length > 0 ? Math.round((allCitas.filter(c => c.estado === "realizada").length / allCitas.length) * 100) : 64, color: "bg-[#1C355E]" },
-    { label: "Pendientes", value: allCitas.length > 0 ? Math.round((allCitas.filter(c => c.estado === "pendiente").length / allCitas.length) * 100) : 22, color: "bg-[#FFCD00]" },
+  const donutSegments = [
+    { label: "Realizadas", value: monthStats.realizadas, color: "#3B82F6" },
+    { label: "Activas", value: monthStats.activas, color: "#10B981" },
+    { label: "Pendientes", value: monthStats.pendientes, color: "#FFCD00" },
+    { label: "Reprogramadas", value: monthStats.reprogramadas, color: "#A78BFA" },
+  ].filter((s) => s.value > 0);
+  const donutTotal = donutSegments.reduce((s, d) => s + d.value, 0);
+  const donutLegend = donutSegments.map((s) => ({ ...s, pct: donutTotal > 0 ? Math.round((s.value / donutTotal) * 100) : 0 }));
+
+  const completionRate = monthStats.total > 0 ? Math.round((monthStats.realizadas / monthStats.total) * 100) : 0;
+
+  const historialTabs = [
+    { key: "todas", label: "Todas" },
+    { key: "pendiente", label: "Pendientes" },
+    { key: "realizada", label: "Realizadas" },
   ];
 
   return (
@@ -239,18 +398,26 @@ export default function AdminDashboard() {
         .fade-up-1 { animation-delay:.05s; } .fade-up-2 { animation-delay:.10s; }
         .fade-up-3 { animation-delay:.15s; } .fade-up-4 { animation-delay:.20s; }
         .fade-up-5 { animation-delay:.25s; } .fade-up-6 { animation-delay:.30s; }
-        @keyframes barGrow { from { transform:scaleY(0); } to { transform:scaleY(1); } }
-        .bar-grow { animation: barGrow .6s cubic-bezier(.22,1,.36,1) both; transform-origin: bottom; }
         @keyframes modalIn { from { opacity:0; transform:scale(.96) translateY(8px); } to { opacity:1; transform:scale(1) translateY(0); } }
         .modal-in { animation: modalIn .25s cubic-bezier(.34,1.56,.64,1) both; }
       `}</style>
 
-      {selectedVisit && <VisitDetailModal visit={selectedVisit} onClose={() => setSelectedVisit(null)} />}
+      <VisualizarVisitaModal
+        show={!!selectedVisit}
+        onClose={() => setSelectedVisit(null)}
+        cita={selectedVisit}
+      />
 
-      <main className="flex-1 bg-[#F4F6FA] p-6 md:p-8 min-h-screen">
+      <main className="flex-1 bg-[#F4F6FA] p-4 sm:p-6 md:p-8 min-h-screen">
+
+        {error && (
+          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700 font-semibold">
+            {error}
+          </div>
+        )}
 
         {/* Title */}
-        <div className="fade-up fade-up-1 mb-7 flex items-center justify-between">
+        <div className="fade-up fade-up-1 mb-7 flex items-center justify-between flex-wrap gap-3">
           <div>
             <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest mb-0.5">Panel General</p>
             <h1 className="text-2xl font-black text-[#1C355E] leading-tight">Dashboard</h1>
@@ -260,32 +427,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Stat cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-7">
-          <div className="fade-up fade-up-1">
-            <StatCard
-              icon={<CheckIcon />}
-              label="Cumplimiento (finalizadas)"
-              value={`${cumplimientoPctLabel}%`}
-              sub={`${monthStats.realizadas} / ${globalGoal} realizadas (mes)`}
-              accent="bg-emerald-400"
-            />
-          </div>
-          <div className="fade-up fade-up-2">
-            <StatCard icon={<CalIcon />}   label="Citas (mes)"  value={monthStats.total}
-              sub="todas" accent="bg-[#1C355E]" />
-          </div>
-          <div className="fade-up fade-up-3">
-            <StatCard icon={<ClockIcon />} label="Pendientes (mes)"     value={monthStats.pendientes}
-              sub="por atender"  accent="bg-[#FFCD00]" />
-          </div>
-          <div className="fade-up fade-up-4">
-            <StatCard icon={<UsersIcon />} label="Asesores"       value={uniqueAsesores}
-              sub="activos"      accent="bg-[#98989A]/60" />
-          </div>
-        </div>
-
-        <div className="fade-up fade-up-2 mb-7 flex items-center justify-between flex-wrap gap-3">
+        <div className="fade-up fade-up-1 mb-7 flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-[#98989A] uppercase tracking-widest">Mes</span>
             <select
@@ -294,94 +436,136 @@ export default function AdminDashboard() {
               className="text-sm font-bold text-[#1C355E] bg-white border border-gray-200 rounded-xl px-3 py-2 outline-none"
               disabled={loading}
             >
+              {months.length === 0 ? <option value={selectedMonth}>{ymLabel(selectedMonth)}</option> : null}
               {months.map((m) => (
                 <option key={m} value={m}>
-                  {m}
+                  {ymLabel(m)}
                 </option>
               ))}
             </select>
           </div>
-          <div className="text-xs text-[#98989A] font-medium bg-white border border-gray-200 px-3 py-2 rounded-xl shadow-sm">
-            Objetivo global: <span className="font-black text-[#1C355E]">{globalGoal}</span> finalizadas / mes
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="text-xs text-[#98989A] font-medium bg-white border border-gray-200 px-3 py-2 rounded-xl shadow-sm">
+              Objetivo: <span className="font-black text-[#1C355E]">{globalGoal}</span> visitas finalizadas · Cumplimiento{" "}
+              <span className="font-black text-[#1C355E]">{cumplimientoPctLabel}%</span>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                const ym = selectedMonth || "sin_mes";
+                const rows = monthCitas.map(flattenCitaAdmin);
+                await downloadExcel(rows, `Resumen_GLOBAL_${ym}_${new Date().toISOString().split("T")[0]}`);
+              }}
+              disabled={loading || monthCitas.length === 0}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1C355E] text-white text-xs font-bold
+                hover:bg-[#16294d] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[.98] transition-all shadow-md"
+              title="Descargar el resumen del mes seleccionado"
+            >
+              <DownloadIcon />
+              Descargar resumen ({monthCitas.length})
+            </button>
           </div>
         </div>
 
-        {error && (
-          <div className="mb-7 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700 font-semibold">
-            {error}
+        {/* Stats */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-7">
+          <div className="fade-up fade-up-1">
+            <StatCard
+              icon={<CheckIcon />}
+              label="Cumplimiento (finalizadas)"
+              value={`${cumplimientoPctLabel}%`}
+              sub={`${monthStats.realizadas} / ${globalGoal} realizadas`}
+              accent="bg-emerald-400"
+              trend={trendVsPrev}
+            />
           </div>
-        )}
+          <div className="fade-up fade-up-2">
+            <StatCard icon={<CalIcon />} label="Citas (mes)" value={monthStats.total} sub="todas" accent="bg-[#1C355E]" />
+          </div>
+          <div className="fade-up fade-up-3">
+            <StatCard icon={<ClockIcon />} label="Pendientes (mes)" value={monthStats.pendientes} sub="por atender" accent="bg-[#FFCD00]" />
+          </div>
+          <div className="fade-up fade-up-4">
+            <StatCard icon={<ActivityIcon />} label="Activas (mes)" value={monthStats.activas} sub="en curso" accent="bg-emerald-400" />
+          </div>
+        </div>
 
-        {/* Charts */}
+        {/* Charts row */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-7">
+          {/* Barras por mes */}
           <div className="fade-up fade-up-3 lg:col-span-3 bg-white rounded-2xl p-6 border border-gray-100 shadow-[0_2px_16px_-4px_rgba(28,53,94,0.08)]">
-            <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center justify-between mb-2">
               <div>
-                <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest">Visitas mensuales</p>
-                <p className="text-lg font-black text-[#1C355E] mt-0.5">{thisYear}</p>
+                <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest">Visitas (global)</p>
+                <p className="text-lg font-black text-[#1C355E] mt-0.5">Histórico por mes</p>
+                <p className="text-[11px] text-[#98989A] mt-1">
+                  Cada barra es un mes con datos; el anillo indica el mes seleccionado arriba ({ymLabel(selectedMonth) || "—"}).
+                </p>
               </div>
-              <span className="text-[11px] font-semibold text-[#1C355E] bg-[#1C355E]/6 px-3 py-1 rounded-full">Año actual</span>
+              <span className="text-[11px] font-semibold text-[#1C355E] bg-[#1C355E]/6 px-3 py-1 rounded-full shrink-0">
+                {loading ? "Cargando…" : `${monthlyBarsData.length} mes(es)`}
+              </span>
             </div>
-            <div className="flex items-end gap-2 h-36">
-              {monthlyData.map((d, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
-                  <span className="text-[10px] font-bold text-[#1C355E]">{d.visitas}</span>
-                  <div className={`w-full rounded-t-lg bar-grow ${i === 4 ? "bg-[#FFCD00]" : "bg-[#1C355E]/40"}`}
-                    style={{ height: `${(d.visitas / maxBar) * 100}%`, animationDelay: `${i * 0.07}s` }} />
-                  <span className="text-[10px] text-[#98989A] font-medium">{d.mes}</span>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mb-5">
+              {[
+                { color: "bg-blue-400", label: "Realizadas" },
+                { color: "bg-[#FFCD00]", label: "Pendientes" },
+                { color: "bg-emerald-400", label: "Activas" },
+                { color: "bg-purple-300", label: "Reprogramadas" },
+              ].map((l) => (
+                <div key={l.label} className="flex items-center gap-1.5">
+                  <span className={`w-2.5 h-2.5 rounded-sm ${l.color}`} />
+                  <span className="text-[10px] text-gray-400 font-medium">{l.label}</span>
                 </div>
               ))}
             </div>
+            <MonthlyStackedBars rows={monthlyBarsData} highlightYm={selectedMonth} />
           </div>
 
           <div className="fade-up fade-up-4 lg:col-span-2 bg-white rounded-2xl p-6 border border-gray-100 shadow-[0_2px_16px_-4px_rgba(28,53,94,0.08)]">
-            <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest mb-1">Estado de citas</p>
-            <p className="text-lg font-black text-[#1C355E] mb-5">Resumen</p>
-            <div className="space-y-3">
-              {RESOLVED_DATA.map((d, i) => (
-                <div key={i}>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs font-semibold text-gray-600">{d.label}</span>
-                    <span className="text-xs font-black text-[#1C355E]">{d.value}%</span>
+            <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest mb-1">Distribución</p>
+            <p className="text-lg font-black text-[#1C355E] mb-4">Por estado</p>
+            <div className="flex items-center justify-center mb-4">
+              <DonutChart segments={donutSegments} size={130} />
+            </div>
+            <div className="space-y-2">
+              {donutLegend.map((item) => (
+                <div key={item.label} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                    <span className="text-xs font-medium text-gray-500">{item.label}</span>
                   </div>
-                  <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full ${d.color}`}
-                      style={{ width: `${d.value}%`, animation: `barGrow .7s cubic-bezier(.22,1,.36,1) ${i * 0.12}s both`, transformOrigin: "left" }} />
-                  </div>
+                  <span className="text-xs font-black text-[#1C355E]">
+                    {item.pct}% <span className="text-[#98989A] font-semibold">({item.value})</span>
+                  </span>
                 </div>
               ))}
             </div>
-            <div className="mt-5 pt-4 border-t border-gray-100 grid grid-cols-3 gap-2 text-center">
-              <div>
-                <p className="text-base font-black text-emerald-600">{monthStats.realizadas}</p>
-                <p className="text-[10px] text-[#98989A] font-medium">Hechas</p>
-              </div>
-              <div>
-                <p className="text-base font-black text-yellow-500">{monthStats.pendientes}</p>
-                <p className="text-[10px] text-[#98989A] font-medium">Pendientes</p>
-              </div>
-              <div>
-              </div>
+            <div className="mt-4 pt-3 border-t border-gray-100 text-center">
+              <p className="text-2xl font-black text-[#1C355E]">{completionRate}%</p>
+              <p className="text-[10px] text-[#98989A] font-medium uppercase tracking-wide">Tasa de realización</p>
             </div>
           </div>
         </div>
 
-        {/* Table — ALL visits from ALL asesores */}
+        {/* Table */}
         <div className="fade-up fade-up-5 bg-white rounded-2xl border border-gray-100 shadow-[0_2px_16px_-4px_rgba(28,53,94,0.08)] overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest">Registro global</p>
-              <p className="text-base font-black text-[#1C355E]">Todas las visitas</p>
+              <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest">Visitas (global)</p>
+              <p className="text-base font-black text-[#1C355E]">Historial</p>
+              <p className="text-[11px] text-[#98989A] mt-0.5 font-medium">
+                Mes: <span className="font-bold text-[#1C355E]">{ymLabel(selectedMonth) || "—"}</span>
+                {" "}· Cambia el mes en el selector superior
+              </p>
             </div>
             <div className="flex items-center gap-1 bg-[#F4F6FA] rounded-xl p-1 flex-wrap">
-              {tabs.map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all duration-200
-                    ${activeTab === tab ? "bg-[#1C355E] text-white shadow-sm" : "text-[#98989A] hover:text-[#1C355E]"}`}
-                >
-                  {tab === "todos" ? "Todos" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {historialTabs.map(({ key, label }) => (
+                <button key={key} type="button" onClick={() => setActiveTab(key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200
+                    ${activeTab === key ? "bg-[#1C355E] text-white shadow-sm" : "text-[#98989A] hover:text-[#1C355E]"}`}>
+                  {label}
                 </button>
               ))}
             </div>
@@ -390,61 +574,51 @@ export default function AdminDashboard() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-[#F4F6FA]">
-                  {["Cliente", "Asesor", "Fecha", "Hora", "Estado", ""].map((h) => (
+                  {["Cliente", "Asesor", "Fecha", "Hora", "Municipio", "Estado", ""].map((h) => (
                     <th key={h} className="text-left px-6 py-3 text-[11px] font-bold text-[#98989A] uppercase tracking-widest">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-              {filtered.length > 0 ? filtered.map((v, i) => {
-                
-                const isFinished = v.estado === "realizada";
-
-                return (
-                  <tr key={v.id || i} className="hover:bg-[#F4F6FA]/60 transition-colors group">
-                    <td className="px-6 py-3.5 font-semibold text-[#1C355E]">
-                      {v.cliente || v.nombre}
-                    </td>
-
-                    <td className="px-6 py-3.5 text-gray-500 text-xs font-medium">
-                      {v.asesorNombre || "—"}
-                    </td>
-
-                    <td className="px-6 py-3.5 text-gray-500 text-xs">{v.fecha}</td>
-                    <td className="px-6 py-3.5 text-gray-500 text-xs">{v.hora}</td>
-
-                    <td className="px-6 py-3.5">
-                      <Badge status={v.estado} />
-                    </td>
-
-                    <td className="px-6 py-3.5">
-                      {isFinished && (
+                {filtered.length > 0 ? filtered.map((v, i) => {
+                  const vis = fechaHoraVisualDesdeVisita(v);
+                  return (
+                    <tr key={v._id || v.id || i} className="hover:bg-[#F4F6FA]/60 transition-colors group">
+                      <td className="px-6 py-3.5 font-semibold text-[#1C355E]">{v.datosVisita?.nombreEmpresa || v.cliente || "—"}</td>
+                      <td className="px-6 py-3.5 text-gray-500 text-xs font-medium">{v.asesorNombre || nombreAsesorDesdeVisita(v) || "—"}</td>
+                      <td className="px-6 py-3.5 text-gray-500 text-xs">{vis.fecha || "—"}</td>
+                      <td className="px-6 py-3.5 text-gray-500 text-xs">{vis.hora || "—"}</td>
+                      <td className="px-6 py-3.5 text-gray-500 text-xs">{v.datosVisita?.municipio || "—"}</td>
+                      <td className="px-6 py-3.5"><Badge status={v.estado} /></td>
+                      <td className="px-6 py-3.5">
                         <button
+                          type="button"
                           onClick={() => setSelectedVisit(v)}
-                          className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-[#1C355E] text-gray-400 hover:text-white
-                          flex items-center justify-center transition-all duration-150 opacity-0 group-hover:opacity-100"
-                          title="Ver detalles"
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 text-xs font-bold hover:bg-gray-50 hover:border-[#1C355E]/30 hover:text-[#1C355E] transition-all"
+                          title="Ver visita"
                         >
-                          <EyeIcon />
+                          <EyeIcon /> Ver
                         </button>
-                      )}
+                      </td>
+                    </tr>
+                  );
+                }) : (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-10 text-center text-[#98989A] text-sm font-medium">
+                      {monthCitas.length === 0
+                        ? "No hay visitas en este mes. Elige otro mes arriba."
+                        : "No hay visitas en este filtro para el mes seleccionado"}
                     </td>
                   </tr>
-                );
-              }) : (
-                <tr>
-                  <td colSpan={6} className="px-6 py-10 text-center text-[#98989A] text-sm font-medium">
-                    No hay visitas en este estado
-                  </td>
-                </tr>
-              )}
+                )}
             </tbody>
             </table>
           </div>
           <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between">
             <p className="text-xs text-[#98989A] font-medium">
               Mostrando <span className="font-bold text-[#1C355E]">{filtered.length}</span> de{" "}
-              <span className="font-bold text-[#1C355E]">{allCitas.length}</span> registros
+              <span className="font-bold text-[#1C355E]">{monthCitas.length}</span> en{" "}
+              <span className="font-semibold">{ymLabel(selectedMonth) || "—"}</span>
             </p>
           </div>
         </div>

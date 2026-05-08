@@ -56,7 +56,7 @@ export function EstadoBadge({ estado }) {
   );
 }
 
-export default function VisualizarVisitaModal({ show, onClose, cita, asesorFallbackNombre }) {
+export default function VisualizarVisitaModal({ show, onClose, cita, asesorFallbackNombre, footerActions, expandDetails }) {
   if (!show || !cita) return null;
 
   const dv = cita?.datosVisita || {};
@@ -66,7 +66,8 @@ export default function VisualizarVisitaModal({ show, onClose, cita, asesorFallb
   const esRealizada = cita?.estado === "realizada";
   const esActiva = cita?.estado === "activa";
   /** Pendiente / reprogramada / activa: solo datos básicos de la cita (como en Crear visita). */
-  const esVistaBasica = ["activa", "pendiente", "reprogramada"].includes(cita?.estado);
+  const esVistaBasica =
+    !expandDetails && ["activa", "pendiente", "reprogramada"].includes(cita?.estado);
   const empresa = dv?.nombreEmpresa || cita?.cliente || "—";
   const nombreAsesor = nombreAsesorDesdeVisita(cita) || String(asesorFallbackNombre || "").trim();
   const visualFh = fechaHoraVisualDesdeVisita(cita);
@@ -180,6 +181,10 @@ export default function VisualizarVisitaModal({ show, onClose, cita, asesorFallb
             </div>
           </>
         )}
+
+        {footerActions ? (
+          <div className="mt-6 pt-4 border-t border-gray-100">{footerActions}</div>
+        ) : null}
       </div>
     </Modal>
   );

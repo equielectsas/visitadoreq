@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
+import AdvisorTaskUrgencyModal from "./AdvisorTaskUrgencyModal";
 import { roleRoutes } from "@/utils/roleRoutes";
 
 export default function LayoutDashboard({ children }) {
@@ -40,6 +41,7 @@ export default function LayoutDashboard({ children }) {
 
   return (
     <div className="flex flex-col h-screen bg-[#f6f8fb]">
+      <AdvisorTaskUrgencyModal />
       <Topbar onMenuToggle={() => setMobileOpen(true)} />
 
       <div className="flex flex-1 overflow-hidden">

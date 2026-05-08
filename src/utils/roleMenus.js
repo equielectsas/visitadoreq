@@ -58,6 +58,12 @@ export const roleMenus = {
     },
     {
       section: "Gestión",
+      name: "Tareas Pendientes",
+      icon: "steps",
+      path: "/dashboard/admin/tareas",
+    },
+    {
+      section: "Gestión",
       name: "Usuarios",
       icon: "users",
       path: "/dashboard/admin/usuarios",
@@ -111,12 +117,6 @@ export const roleMenus = {
       name: "Tareas Pendientes",
       icon: "steps",
       path: "/dashboard/asesor/tareas",
-    },
-    {
-      section: "Análisis",
-      name: "Reportes",
-      icon: "report",
-      path: "/dashboard/asesor/reportes",
     },
   ],
 };

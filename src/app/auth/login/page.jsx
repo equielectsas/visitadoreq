@@ -195,6 +195,14 @@ export default function LoginPage() {
           token:  data.token,
         })
       );
+      if (data.token) localStorage.setItem("token", data.token);
+
+      try {
+        sessionStorage.setItem("equielect_just_logged_in_v1", "1");
+        window.dispatchEvent(new Event("equielect-user-logged-in"));
+      } catch {
+        /* ignore */
+      }
 
       if (rememberMe) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({ cedula, password }));
