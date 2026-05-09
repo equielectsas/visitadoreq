@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { getChequeoApiBase } from "@/lib/chequeoUpstreamBase";
 
+/**
+ * Proxy servidor → API plataforma (chequeo vehículo).
+ * Debe vivir fuera de /api/* para no ser capturado por next.config rewrites → visitadorback.
+ */
+
 function upstreamUrl(pathSegments, search) {
   const apiBase = getChequeoApiBase();
   if (!apiBase) return null;
@@ -20,8 +25,8 @@ function forwardAuthHeaders(req) {
   return h;
 }
 
-/** Proxy servidor → API plataforma (sin Origin del navegador; evita CORS en Heroku). */
-export async function GET(request, { params }) {
+export async function GET(request, context) {
+  const params = await context.params;
   const url = upstreamUrl(params.path, request.nextUrl.search);
   if (!url) {
     return NextResponse.json(
@@ -49,7 +54,8 @@ export async function GET(request, { params }) {
   }
 }
 
-export async function POST(request, { params }) {
+export async function POST(request, context) {
+  const params = await context.params;
   const url = upstreamUrl(params.path, "");
   if (!url) {
     return NextResponse.json(

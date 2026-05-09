@@ -157,12 +157,12 @@ export default function ChequeoVehiculoPage() {
       return;
     }
 
-    // Proxy en Route Handler (/api/chequeo-proxy) para no enviar Origin al API de plataforma (evita CORS en Heroku).
+    // Route Handler en /chequeo-proxy (no bajo /api: el rewrite /api/* va al visitador y rompería el proxy).
     const path =
       tipo === "moto"
         ? "/chequeoVehiculos/chequeoMoto"
         : "/chequeoVehiculos/chequeoCarro";
-    const url = `/api/chequeo-proxy${path}`;
+    const url = `/chequeo-proxy${path}`;
 
     const km = Number(String(kilometraje).replace(",", "."));
 

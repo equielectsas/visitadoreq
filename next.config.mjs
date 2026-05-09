@@ -14,6 +14,8 @@ function normalizeChequeoTarget(raw) {
 const nextConfig = {
   async rewrites() {
     const c = normalizeChequeoTarget(chequeoApi);
+    // Nota: todo lo que empiece por /api/* se reenvía al visitadorback.
+    // El proxy de chequeo en App Router vive en /chequeo-proxy/* (no bajo /api).
     return [
       {
         source: "/api-chequeo/:path*",

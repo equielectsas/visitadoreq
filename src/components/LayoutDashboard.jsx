@@ -53,7 +53,7 @@ export default function LayoutDashboard({ children }) {
           mobileOpen={mobileOpen}
           onClose={closeMobileMenu}
         />
-        <main className="flex-1 p-6 overflow-auto">
+        <main className="flex-1 overflow-auto px-3 py-4 sm:px-5 sm:py-5 md:p-6">
           {children}
         </main>
       </div>

@@ -2198,29 +2198,38 @@ export default function AsesorCitasPage() {
             </p>
           </div>
         )}
-        <div className="fade-up flex items-start justify-between flex-wrap gap-4">
-          <div><p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Mis Visitas</p><h1 className="text-2xl font-black text-gray-800 mt-0.5">Gestión de citas</h1></div>
-          <button onClick={() => setShowCrear(true)}
-            className="flex items-center gap-2 px-5 py-3 rounded-xl bg-[#FFCD00] text-[#1C355E] font-bold text-sm hover:bg-yellow-400 active:scale-[.98] transition-all shadow-lg shadow-yellow-200">
+        <div className="fade-up flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Mis Visitas</p>
+            <h1 className="text-xl sm:text-2xl font-black text-gray-800 mt-0.5">Gestión de citas</h1>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowCrear(true)}
+            className="flex w-full sm:w-auto shrink-0 items-center justify-center gap-2 px-4 py-3 sm:px-5 rounded-xl bg-[#FFCD00] text-[#1C355E] font-bold text-sm hover:bg-yellow-400 active:scale-[.98] transition-all shadow-lg shadow-yellow-200 touch-manipulation"
+          >
             <PlusIcon /> Nueva Visita
           </button>
         </div>
 
-        <div className="fade-up fade-up-1 grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="fade-up fade-up-1 grid grid-cols-1 min-[400px]:grid-cols-2 lg:grid-cols-4 gap-3">
           {[
             { label:"Pendientes",    value:stats.pendientes,    icon:"🕐", color:"border-yellow-100 bg-yellow-50"   },
             { label:"Activas",       value:stats.activas,       icon:"🚀", color:"border-emerald-100 bg-emerald-50" },
             { label:"Realizadas",    value:stats.realizadas,    icon:"✅", color:"border-blue-100 bg-blue-50"       },
             { label:"Reprogramadas", value:stats.reprogramadas, icon:"🔄", color:"border-purple-100 bg-purple-50"   },
           ].map(({ label, value, icon, color }) => (
-            <div key={label} className={`rounded-2xl p-5 border ${color} flex items-center gap-4`}>
-              <div className="text-2xl">{icon}</div>
-              <div><p className="text-2xl font-black text-gray-800 leading-none">{value}</p><p className="text-xs font-semibold text-gray-400 mt-0.5 uppercase tracking-wide">{label}</p></div>
+            <div key={label} className={`rounded-2xl p-4 sm:p-5 border ${color} flex items-center gap-3 sm:gap-4 min-w-0`}>
+              <div className="text-xl sm:text-2xl shrink-0">{icon}</div>
+              <div className="min-w-0">
+                <p className="text-xl sm:text-2xl font-black text-gray-800 leading-none">{value}</p>
+                <p className="text-[10px] sm:text-xs font-semibold text-gray-400 mt-0.5 uppercase tracking-wide truncate">{label}</p>
+              </div>
             </div>
           ))}
         </div>
 
-        <div className="fade-up fade-up-2 flex items-center gap-2 flex-wrap">
+        <div className="fade-up fade-up-2 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:items-center">
           {[
             { v: "todos", label: "Todas" },
             { v: "pendiente", label: "Pendientes" },
@@ -2228,11 +2237,12 @@ export default function AsesorCitasPage() {
           ].map((opt) => (
             <button
               key={opt.v}
+              type="button"
               onClick={() => setFiltro(opt.v)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all
+              className={`py-2.5 px-2 sm:px-4 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wide transition-all touch-manipulation min-h-[44px] sm:min-h-0
                 ${filtro === opt.v ? "bg-[#1C355E] text-white shadow-lg shadow-[#1C355E]/25" : "bg-white text-gray-500 border border-gray-200 hover:border-gray-300 hover:bg-gray-50"}`}
             >
-              {opt.label}
+              <span className="leading-tight block">{opt.label}</span>
             </button>
           ))}
         </div>
@@ -2253,25 +2263,35 @@ export default function AsesorCitasPage() {
           {filtered.map((cita, i) => {
             const cv = fechaHoraVisualDesdeVisita(cita);
             return (
-            <div key={cita._id || i}
-              className="bg-white rounded-2xl border border-gray-100 p-5 flex items-center justify-between gap-4 hover:border-gray-200 hover:shadow-sm transition-all">
-              <div className="flex items-center gap-4 min-w-0">
-                <div className="w-11 h-11 rounded-xl bg-[#1C355E]/8 flex items-center justify-center flex-shrink-0 text-lg">🏢</div>
-                <div className="min-w-0">
-                  <p className="font-bold text-gray-800 truncate">{cita.datosVisita?.nombreEmpresa || "—"}</p>
-                  <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-gray-400">
+            <div
+              key={cita._id || i}
+              className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-4 hover:border-gray-200 hover:shadow-sm transition-all"
+            >
+              <div className="flex items-start gap-3 min-w-0 w-full md:flex-1">
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-[#1C355E]/8 flex items-center justify-center flex-shrink-0 text-base sm:text-lg">🏢</div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-gray-800 text-sm sm:text-base break-words">{cita.datosVisita?.nombreEmpresa || "—"}</p>
+                  <div className="flex items-center gap-x-2 gap-y-1 mt-1 flex-wrap text-[11px] sm:text-xs text-gray-400">
                     <span className="flex items-center gap-1"><CalIcon /> {cv.fecha}</span>
                     {cv.hora && <span>· {cv.hora}</span>}
-                    {cita.estado === "reprogramada" && cita.motivoReprogramacion && <span className="text-purple-500 font-medium">· {cita.motivoReprogramacion}</span>}
+                    {cita.estado === "reprogramada" && cita.motivoReprogramacion && (
+                      <span className="text-purple-500 font-medium">· {cita.motivoReprogramacion}</span>
+                    )}
+                  </div>
+                  <div className="mt-2 md:hidden">
+                    <EstadoBadge estado={cita.estado} />
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <EstadoBadge estado={cita.estado} />
+              <div className="w-full md:w-auto md:max-w-[55%] lg:max-w-none flex flex-col gap-2 sm:flex-row sm:flex-wrap md:justify-end md:items-center md:gap-2">
+                <div className="hidden md:block flex-shrink-0">
+                  <EstadoBadge estado={cita.estado} />
+                </div>
+                <div className="flex flex-wrap gap-2 w-full md:w-auto md:justify-end">
                 <button
                   type="button"
                   onClick={() => { setCitaSeleccionada(cita); setShowVer(true); }}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 text-xs font-bold hover:bg-gray-50 hover:border-[#1C355E]/30 hover:text-[#1C355E] active:scale-[.97] transition-all"
+                  className="inline-flex flex-[1_1_calc(50%-0.25rem)] md:flex-initial items-center justify-center gap-1.5 px-2 sm:px-3 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-[11px] sm:text-xs font-bold hover:bg-gray-50 hover:border-[#1C355E]/30 hover:text-[#1C355E] active:scale-[.97] transition-all touch-manipulation min-h-[44px] md:min-h-0"
                   title="Ver visita"
                 >
                   <EyeIcon /> Ver
@@ -2280,29 +2300,39 @@ export default function AsesorCitasPage() {
                   <button
                     type="button"
                     onClick={() => { setCitaSeleccionada(cita); setShowEditar(true); }}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-600 text-xs font-bold hover:bg-gray-50 hover:border-[#1C355E]/30 hover:text-[#1C355E] active:scale-[.97] transition-all"
+                    className="inline-flex flex-[1_1_calc(50%-0.25rem)] md:flex-initial items-center justify-center gap-1.5 px-2 sm:px-3 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-[11px] sm:text-xs font-bold hover:bg-gray-50 hover:border-[#1C355E]/30 hover:text-[#1C355E] active:scale-[.97] transition-all touch-manipulation min-h-[44px] md:min-h-0"
                   >
                     <PencilIcon /> Editar
                   </button>
                 )}
                 {(cita.estado === "pendiente" || cita.estado === "reprogramada") && (
-                  <button onClick={() => handleIniciarCita(cita)}
-                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#FFCD00] text-[#1C355E] text-xs font-bold hover:bg-yellow-400 active:scale-[.97] transition-all">
+                  <button
+                    type="button"
+                    onClick={() => handleIniciarCita(cita)}
+                    className="inline-flex flex-[1_1_calc(50%-0.25rem)] md:flex-initial items-center justify-center gap-1.5 px-2 sm:px-3.5 py-2.5 rounded-xl bg-[#FFCD00] text-[#1C355E] text-[11px] sm:text-xs font-bold hover:bg-yellow-400 active:scale-[.97] transition-all touch-manipulation min-h-[44px] md:min-h-0"
+                  >
                     <PlayIcon /> Iniciar
                   </button>
                 )}
                 {(cita.estado === "pendiente" || cita.estado === "reprogramada") && (
-                  <button onClick={() => { setCitaSeleccionada(cita); setShowReprogramar(true); }}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 text-xs font-bold hover:bg-gray-50 hover:border-purple-300 hover:text-purple-600 active:scale-[.97] transition-all">
+                  <button
+                    type="button"
+                    onClick={() => { setCitaSeleccionada(cita); setShowReprogramar(true); }}
+                    className="inline-flex flex-[1_1_calc(50%-0.25rem)] md:flex-initial items-center justify-center gap-1.5 px-2 sm:px-3 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-[11px] sm:text-xs font-bold hover:bg-gray-50 hover:border-purple-300 hover:text-purple-600 active:scale-[.97] transition-all touch-manipulation min-h-[44px] md:min-h-0"
+                  >
                     <ReprogramarIcon /> Reprogramar
                   </button>
                 )}
                 {cita.estado === "activa" && (
-                  <button onClick={() => { setCitaSeleccionada(cita); setShowDetalles(true); }}
-                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-500 text-white text-xs font-bold hover:bg-emerald-600 active:scale-[.97] transition-all">
+                  <button
+                    type="button"
+                    onClick={() => { setCitaSeleccionada(cita); setShowDetalles(true); }}
+                    className="inline-flex flex-[1_1_calc(50%-0.25rem)] md:flex-initial items-center justify-center gap-1.5 px-2 sm:px-3.5 py-2.5 rounded-xl bg-emerald-500 text-white text-[11px] sm:text-xs font-bold hover:bg-emerald-600 active:scale-[.97] transition-all touch-manipulation min-h-[44px] md:min-h-0"
+                  >
                     Continuar
                   </button>
                 )}
+                </div>
               </div>
             </div>
             );
