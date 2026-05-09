@@ -1,5 +1,8 @@
-﻿export async function login({ cedula, password }) {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
+﻿/** Misma ruta que Express: app.use("/api/auth", …) + router.post("/login"). Usar URL relativa para Vercel rewrites → Heroku. */
+const LOGIN_URL = "/api/auth/login";
+
+export async function login({ cedula, password }) {
+  const res = await fetch(LOGIN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ cedula, password }),
