@@ -41,7 +41,7 @@ export default function LayoutDashboard({ children }) {
   }, [pathname, router]);
 
   return (
-    <div className="flex flex-col h-screen bg-[#f6f8fb]">
+    <div className="eq-dashboard flex flex-col h-screen bg-[#f6f8fb] dark:bg-[var(--eq-page-bg)] transition-colors duration-200">
       <AdvisorTaskUrgencyModal />
       <Topbar
         onMenuToggle={() => setMobileOpen(true)}
@@ -53,7 +53,7 @@ export default function LayoutDashboard({ children }) {
           mobileOpen={mobileOpen}
           onClose={closeMobileMenu}
         />
-        <main className="flex-1 overflow-auto px-3 py-4 sm:px-5 sm:py-5 md:p-6">
+        <main className="eq-main flex-1 overflow-auto px-3 py-4 sm:px-5 sm:py-5 md:p-6 transition-colors duration-200">
           {children}
         </main>
       </div>

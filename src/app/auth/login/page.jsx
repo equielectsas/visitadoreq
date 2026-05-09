@@ -237,7 +237,7 @@ export default function LoginPage() {
         />
       )}
 
-      <div className="min-h-screen min-h-[100dvh] w-full bg-gray-100 flex flex-col items-center justify-center box-border px-4 py-8 sm:px-6 sm:py-10">
+      <div className="auth-screen min-h-screen min-h-[100dvh] w-full bg-gray-100 flex flex-col items-center justify-center box-border px-4 py-8 sm:px-6 sm:py-10">
         <div
           className="w-full max-w-md mx-auto flex flex-col justify-center shrink-0
           lg:max-w-screen-xl lg:mx-0 lg:flex-row lg:items-stretch lg:min-h-[min(100dvh,44rem)] lg:max-h-[calc(100dvh-4rem)]
@@ -336,9 +336,9 @@ export default function LoginPage() {
           </div>
 
           {/* RIGHT PANEL */}
-          <div className="flex-1 bg-white hidden lg:flex min-h-0">
+          <div className="flex-1 bg-white dark:bg-eqDark-surface hidden lg:flex min-h-0 overflow-hidden">
             <div
-              className="flex-1 bg-cover bg-center"
+              className="flex-1 bg-cover bg-center dark:brightness-[0.45] dark:contrast-110"
               style={{ backgroundImage: "url('/assets/img/login/principal.jpg')" }}
             />
           </div>

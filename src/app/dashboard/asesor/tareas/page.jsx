@@ -119,14 +119,14 @@ export default function TareasAsesor() {
 
   return (
     <LayoutDashboard>
-      <main className="flex-1 bg-[#F4F6FA] p-4 sm:p-6 md:p-8 min-h-screen">
+      <main className="flex-1 bg-[#F4F6FA] dark:bg-transparent p-4 sm:p-6 md:p-8 min-h-screen">
         <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
           <div>
-            <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest mb-0.5">Mi Panel</p>
-            <h1 className="text-2xl font-black text-[#1C355E] leading-tight">Tareas</h1>
-            <p className="text-xs text-[#98989A] mt-1">Se cargan desde Mongo (visitas.datosVisita.tareasPendientes)</p>
+            <p className="text-xs font-bold text-[#98989A] dark:text-slate-400 uppercase tracking-widest mb-0.5">Mi Panel</p>
+            <h1 className="text-2xl font-black text-[#1C355E] dark:text-white leading-tight">Tareas</h1>
+            <p className="text-xs text-[#98989A] dark:text-slate-400 mt-1">Se cargan desde Mongo (visitas.datosVisita.tareasPendientes)</p>
           </div>
-          <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl p-1">
+          <div className="flex items-center gap-2 bg-white dark:bg-eqDark-surface border border-gray-200 dark:border-slate-600 rounded-xl p-1">
             {[
               { key: "todas", label: "Todas" },
               { key: "pendientes", label: "Pendientes" },
@@ -136,7 +136,7 @@ export default function TareasAsesor() {
                 key={t.key}
                 onClick={() => setFilterEstado(t.key)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  filterEstado === t.key ? "bg-[#1C355E] text-white" : "text-[#98989A] hover:text-[#1C355E]"
+                  filterEstado === t.key ? "bg-[#1C355E] text-white" : "text-[#98989A] dark:text-slate-400 hover:text-[#1C355E] dark:hover:text-[#FFCD00]"
                 }`}
               >
                 {t.label}

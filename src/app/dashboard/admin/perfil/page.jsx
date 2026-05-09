@@ -11,31 +11,14 @@
  * La URL no cambia ni se redirige. Los datos se leen de localStorage["user"].
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import LayoutDashboard from "@/components/LayoutDashboard";
-
-function getToken() {
-  try {
-    const u = JSON.parse(localStorage.getItem("user") || "null");
-    return u?.token || localStorage.getItem("token");
-  } catch {
-    return localStorage.getItem("token");
-  }
-}
-
-async function fetchVisitas({ page = 1, limit = 500 } = {}) {
-  const token = getToken();
-  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
-  const res = await fetch(`/api/visitas?${params.toString()}`, {
-    headers: { Authorization: token },
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.message || `Error ${res.status}`);
-  if (Array.isArray(data?.visitas)) return data.visitas;
-  if (Array.isArray(data?.data)) return data.data;
-  if (Array.isArray(data)) return data;
-  return [];
-}
+import {
+  fetchVisitasForPerfil,
+  visitaPerteneceAlUsuarioActual,
+  visitasRecientesParaPerfil,
+  uniqueAsesoresActivosCount,
+} from "@/utils/perfilHelpers";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const CameraIcon = () => (
@@ -231,6 +214,7 @@ export default function PerfilPage() {
   const [avatar, setAvatar]     = useState(null);
   const [saved, setSaved]       = useState(false);
   const [allCitas, setAllCitas] = useState([]);
+  const [visitasLoading, setVisitasLoading] = useState(true);
   const [selectedVisit, setSelectedVisit] = useState(null);
   const fileRef = useRef(null);
 
@@ -246,10 +230,12 @@ export default function PerfilPage() {
     let mounted = true;
     (async () => {
       try {
-        const v = await fetchVisitas({ page: 1, limit: 500 });
+        const v = await fetchVisitasForPerfil({ page: 1, limit: 500 });
         if (mounted) setAllCitas(v);
       } catch {
         if (mounted) setAllCitas([]);
+      } finally {
+        if (mounted) setVisitasLoading(false);
       }
     })();
 
@@ -261,11 +247,24 @@ export default function PerfilPage() {
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const handleSave = () => {
-    const updated = { ...form, avatar };
+    const nombres = (form.nombres || "").trim();
+    const apellidos = (form.apellidos || "").trim();
+    let nombre = (form.nombre || "").trim();
+    if (nombres || apellidos) {
+      const merged = [nombres, apellidos].filter(Boolean).join(" ").trim();
+      if (merged) nombre = merged;
+    }
+    const updated = { ...form, nombre, nombres, apellidos, avatar };
     localStorage.setItem("user", JSON.stringify(updated));
     setUser(updated);
+    setForm(updated);
     setEditing(false);
     setSaved(true);
+    try {
+      window.dispatchEvent(new Event("avatar-updated"));
+    } catch {
+      /* ignore */
+    }
     setTimeout(() => setSaved(false), 3000);
   };
 
@@ -283,6 +282,17 @@ export default function PerfilPage() {
     reader.readAsDataURL(file);
   };
 
+  const visitasParaStats = useMemo(() => {
+    if (!user) return [];
+    if (user.rol === "comercial") return allCitas.filter((c) => visitaPerteneceAlUsuarioActual(c, user));
+    return allCitas;
+  }, [allCitas, user]);
+
+  const recentVisits = useMemo(
+    () => visitasRecientesParaPerfil(visitasParaStats, 5),
+    [visitasParaStats]
+  );
+
   if (!user) return (
     <LayoutDashboard>
       <div className="flex items-center justify-center h-64">
@@ -298,30 +308,19 @@ export default function PerfilPage() {
   // ── Build stats based on role ───────────────────────────────────────────────
   const isAsesor  = user.rol === "comercial";
   const isAdmin   = user.rol === "adminComercial";
-  const isProg    = user.rol === "adminPlataforma";
-
-  // For asesor: only their visits. For admin/prog: all visits.
-  const myVisits = isAsesor
-    ? allCitas.filter((c) => c.asesorId === user.id || c.asesorNombre === user.nombre)
-    : allCitas;
 
   const statsConfig = isAsesor || isAdmin ? [
-    { label: "Total visitas",   value: myVisits.length },
-    { label: "Realizadas",      value: myVisits.filter((c) => c.estado === "realizada").length },
-    { label: "Pendientes",      value: myVisits.filter((c) => c.estado === "pendiente").length },
+    { label: "Total visitas",   value: visitasParaStats.length },
+    { label: "Realizadas",      value: visitasParaStats.filter((c) => c.estado === "realizada").length },
+    { label: "Pendientes",      value: visitasParaStats.filter((c) => c.estado === "pendiente").length },
   ] : [
     { label: "Total citas",     value: allCitas.length },
     { label: "Realizadas",      value: allCitas.filter((c) => c.estado === "realizada").length },
     { label: "Pendientes",      value: allCitas.filter((c) => c.estado === "pendiente").length },
-    { label: "Asesores activos",value: [...new Set(allCitas.map((c) => c.asesorId || c.asesorNombre))].length },
+    { label: "Asesores activos",value: uniqueAsesoresActivosCount(allCitas) },
   ];
 
   const colors = STAT_COLORS[user.rol] || STAT_COLORS.comercial;
-
-  // Recent activity: for asesor = their own. For admin/prog = all (last 5)
-  const recentVisits = isAsesor
-    ? myVisits.slice(-5).reverse()
-    : allCitas.slice(-5).reverse();
 
   return (
     <LayoutDashboard>
@@ -388,7 +387,7 @@ export default function PerfilPage() {
             <div className="flex-1 min-w-0 pt-6">
               <div className="flex items-start justify-between flex-wrap gap-3">
                 <div>
-                  <h1 className="text-2xl font-black text-gray-800 leading-tight">{user.nombre || "Cargando..."}</h1>
+                  <h1 className="text-2xl font-black text-gray-800 dark:text-white leading-tight">{user.nombre || "Cargando..."}</h1>
                   <p className="text-sm text-gray-400 mt-0.5">C.C. {user.cedula || "—"}</p>
                   <div className="mt-2 flex items-center gap-2 flex-wrap">
                     <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full ${rolInfo.badge}`}>
@@ -483,13 +482,15 @@ export default function PerfilPage() {
         {/* ── ACTIVIDAD RECIENTE ──────────────────────────────────────── */}
         <div className="fu fu-4">
           <SectionCard icon={<ActivityIcon />} title={isAsesor ? "Mi Actividad Reciente" : "Actividad Reciente (Global)"}>
-            {recentVisits.length === 0 ? (
+            {visitasLoading ? (
+              <p className="text-sm text-gray-400 text-center py-4">Cargando actividad…</p>
+            ) : recentVisits.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-4">Sin actividad registrada aún</p>
             ) : (
               <div className="space-y-0 divide-y divide-gray-50">
                 {recentVisits.map((v) => {
                   return (
-                    <div key={v.id} className="flex items-center justify-between py-3 group">
+                    <div key={v.id || `${v.cliente}-${v.fecha}`} className="flex items-center justify-between py-3 group">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center text-base flex-shrink-0">🏢</div>
                         <div>
@@ -510,8 +511,8 @@ export default function PerfilPage() {
                             : "bg-red-100 text-red-600"}`}>
                           {v.estado}
                         </span>
-                        {/* Eye button - only for finished visits */}
-                        {isFinished && (
+                        {/* Eye button - solo visitas cerradas */}
+                        {v.estado === "realizada" && (
                           <button
                             onClick={() => setSelectedVisit(v)}
                             className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-[#1C355E] text-gray-400 hover:text-white

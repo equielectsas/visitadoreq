@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useLayoutEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   getNotificationsForUser,
@@ -9,6 +9,7 @@ import {
   formatNotifTime,
   refreshVisitRemindersFromVisitas,
 } from "@/utils/platformNotifications";
+import { setTheme, isDarkMode } from "@/utils/theme";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const BellIcon = () => (
@@ -63,10 +64,26 @@ const ROL_DISPLAY = {
 };
 
 const ROLE_STYLES = {
-  adminPlataforma: { bg: "bg-[#1C355E]/10", text: "text-[#1C355E]",   label: "Admin"   },
-  adminComercial:  { bg: "bg-[#FFCD00]/20", text: "text-yellow-700",  label: "Admin" },
-  comercial:       { bg: "bg-emerald-100",   text: "text-emerald-700", label: "Asesor"        },
-  default:         { bg: "bg-gray-100",      text: "text-gray-600",    label: "Usuario"       },
+  adminPlataforma: {
+    bg: "bg-[#1C355E]/10 dark:bg-[#FFCD00]/20",
+    text: "text-[#1C355E] dark:text-[#FFCD00]",
+    label: "Admin",
+  },
+  adminComercial: {
+    bg: "bg-[#FFCD00]/20 dark:bg-[#FFCD00]/25",
+    text: "text-yellow-800 dark:text-[#FFCD00]",
+    label: "Admin",
+  },
+  comercial: {
+    bg: "bg-emerald-100 dark:bg-emerald-900/45",
+    text: "text-emerald-800 dark:text-emerald-200",
+    label: "Asesor",
+  },
+  default: {
+    bg: "bg-gray-100 dark:bg-slate-700/80",
+    text: "text-gray-700 dark:text-slate-100",
+    label: "Usuario",
+  },
 };
 
 // ── Notifications ─────────────────────────────────────────────────────────────
@@ -90,10 +107,10 @@ function Avatar({ user, size = "md" }) {
   const initials = (user?.nombre || "U").split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
   const gradient = getGradient(user?.nombre || "");
   if (user?.avatar) {
-    return <img src={user.avatar} alt={user.nombre} className={`${sz} rounded-full object-cover shadow-md ring-2 ring-white`} />;
+    return <img src={user.avatar} alt={user.nombre} className={`${sz} rounded-full object-cover shadow-md ring-2 ring-white dark:ring-[#FFCD00]/25`} />;
   }
   return (
-    <div className={`${sz} rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center font-bold text-white shadow-md ring-2 ring-white`}>
+    <div className={`${sz} rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center font-bold text-white shadow-md ring-2 ring-white dark:ring-[#FFCD00]/25`}>
       {initials}
     </div>
   );
@@ -113,16 +130,16 @@ function NotificationsModal({ show, onClose, notifs, onMarkRead, onMarkAllRead, 
     // En mobile: full width alineado a la derecha con margen
     // En sm+: width fijo 96 (w-96)
     <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] sm:w-96 max-w-sm z-50" ref={ref}>
-      <div className="notif-modal bg-white rounded-2xl shadow-[0_8px_40px_-8px_rgba(0,0,0,0.20)] border border-gray-100 overflow-hidden">
+      <div className="notif-modal bg-white dark:bg-slate-900 rounded-2xl shadow-[0_8px_40px_-8px_rgba(0,0,0,0.20)] dark:shadow-[0_8px_40px_-8px_rgba(0,0,0,0.5)] border border-gray-100 dark:border-slate-700 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 sm:px-5 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-4 sm:px-5 py-4 border-b border-gray-100 dark:border-slate-700">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[#1C355E]/8 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-[#1C355E]/8 dark:bg-[#FFCD00]/15 flex items-center justify-center text-[#1C355E] dark:text-[#FFCD00]">
               <BellIcon />
             </div>
             <div>
-              <p className="text-sm font-bold text-gray-800 leading-tight">Notificaciones</p>
-              {unreadCount > 0 && <p className="text-[11px] text-gray-400">{unreadCount} sin leer</p>}
+              <p className="text-sm font-bold text-gray-800 dark:text-slate-100 leading-tight">Notificaciones</p>
+              {unreadCount > 0 && <p className="text-[11px] text-gray-400 dark:text-slate-500">{unreadCount} sin leer</p>}
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -133,18 +150,18 @@ function NotificationsModal({ show, onClose, notifs, onMarkRead, onMarkAllRead, 
                 <span className="hidden sm:inline">Todas leídas</span>
               </button>
             )}
-            <button onClick={onClose} className="w-7 h-7 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors">
+            <button onClick={onClose} className="w-7 h-7 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 flex items-center justify-center transition-colors text-gray-600 dark:text-slate-300">
               <CloseIcon />
             </button>
           </div>
         </div>
         {/* List */}
-        <div className="max-h-[60vh] sm:max-h-[400px] overflow-y-auto divide-y divide-gray-50">
+        <div className="max-h-[60vh] sm:max-h-[400px] overflow-y-auto divide-y divide-gray-50 dark:divide-slate-800">
           {notifs.length === 0 ? (
             <div className="px-5 py-12 text-center">
               <p className="text-4xl mb-3">🔕</p>
-              <p className="text-sm font-semibold text-gray-500">No tienes notificaciones</p>
-              <p className="text-xs text-gray-400 mt-1">Aquí aparecerán tus alertas y novedades</p>
+              <p className="text-sm font-semibold text-gray-500 dark:text-slate-400">No tienes notificaciones</p>
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">Aquí aparecerán tus alertas y novedades</p>
             </div>
           ) : (
             notifs.map((n) => {
@@ -152,17 +169,17 @@ function NotificationsModal({ show, onClose, notifs, onMarkRead, onMarkAllRead, 
               return (
                 <button key={n.id} onClick={() => onMarkRead(n.id)}
                   className={`w-full flex items-start gap-3 px-4 sm:px-5 py-4 text-left transition-all duration-150
-                    ${n.read ? "opacity-60 hover:opacity-80 hover:bg-gray-50" : "hover:bg-blue-50/40 bg-blue-50/20"}`}>
-                  <div className={`w-9 h-9 rounded-xl ${nInfo.bg} flex items-center justify-center text-base flex-shrink-0 mt-0.5`}>
+                    ${n.read ? "opacity-60 hover:opacity-80 hover:bg-gray-50 dark:hover:bg-slate-800/80" : "hover:bg-blue-50/40 dark:hover:bg-slate-800/60 bg-blue-50/20 dark:bg-slate-800/40"}`}>
+                  <div className={`w-9 h-9 rounded-xl ${nInfo.bg} dark:opacity-90 flex items-center justify-center text-base flex-shrink-0 mt-0.5`}>
                     {nInfo.emoji}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
-                      <p className={`text-sm font-bold leading-tight ${n.read ? "text-gray-500" : "text-gray-800"}`}>{n.title}</p>
+                      <p className={`text-sm font-bold leading-tight ${n.read ? "text-gray-500 dark:text-slate-500" : "text-gray-800 dark:text-slate-100"}`}>{n.title}</p>
                       {!n.read && <span className="w-2 h-2 rounded-full bg-[#FFCD00] flex-shrink-0 mt-1" />}
                     </div>
-                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed line-clamp-2">{n.body}</p>
-                    <p className="text-[10px] text-gray-400 font-medium mt-1">{n.time}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5 leading-relaxed line-clamp-2">{n.body}</p>
+                    <p className="text-[10px] text-gray-400 dark:text-slate-500 font-medium mt-1">{n.time}</p>
                   </div>
                 </button>
               );
@@ -170,8 +187,8 @@ function NotificationsModal({ show, onClose, notifs, onMarkRead, onMarkAllRead, 
           )}
         </div>
         {notifs.length > 0 && (
-          <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/50">
-            <p className="text-xs text-gray-400 text-center font-medium">
+          <div className="px-5 py-3 border-t border-gray-100 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-800/50">
+            <p className="text-xs text-gray-400 dark:text-slate-500 text-center font-medium">
               {notifs.filter((n) => n.read).length} de {notifs.length} leídas
             </p>
           </div>
@@ -195,12 +212,46 @@ function Toggle({ label, storageKey, defaultVal }) {
   };
   return (
     <div className="flex items-center justify-between">
-      <span className="text-sm font-medium text-gray-600">{label}</span>
-      <button onClick={toggle}
-        className={`relative rounded-full transition-all duration-200 ${on ? "bg-[#1C355E]" : "bg-gray-200"}`}
+      <span className="text-sm font-medium text-gray-600 dark:text-slate-300">{label}</span>
+      <button type="button" onClick={toggle}
+        className={`relative rounded-full transition-all duration-200 ${on ? "bg-[#1C355E] dark:bg-[#FFCD00]" : "bg-gray-200 dark:bg-slate-600"}`}
         style={{ height: "22px", width: "40px" }}>
         <span className={`absolute top-0.5 left-0.5 bg-white rounded-full shadow transition-transform duration-200 ${on ? "translate-x-[18px]" : "translate-x-0"}`}
           style={{ width: "18px", height: "18px" }} />
+      </button>
+    </div>
+  );
+}
+
+function DarkModeToggle() {
+  const [dark, setDark] = useState(false);
+  useLayoutEffect(() => {
+    setDark(isDarkMode());
+  }, []);
+  useEffect(() => {
+    const sync = () => setDark(isDarkMode());
+    window.addEventListener("theme-changed", sync);
+    return () => window.removeEventListener("theme-changed", sync);
+  }, []);
+  const flip = () => {
+    const next = dark ? "light" : "dark";
+    setTheme(next);
+    setDark(next === "dark");
+  };
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-sm font-medium text-gray-600 dark:text-slate-300">Modo oscuro</span>
+      <button
+        type="button"
+        onClick={flip}
+        aria-label={dark ? "Usar modo claro" : "Usar modo oscuro"}
+        className={`relative rounded-full transition-all duration-200 ${dark ? "bg-[#FFCD00]" : "bg-gray-200 dark:bg-slate-600"}`}
+        style={{ height: "22px", width: "40px" }}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 bg-white rounded-full shadow transition-transform duration-200 ${dark ? "translate-x-[18px]" : "translate-x-0"}`}
+          style={{ width: "18px", height: "18px" }}
+        />
       </button>
     </div>
   );
@@ -210,20 +261,20 @@ function ConfigModal({ show, onClose }) {
   if (!show) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center sm:justify-end p-4 pt-16 sm:pt-16">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-sm sm:w-80 border border-gray-100">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <div className="flex items-center gap-2">
+      <div className="absolute inset-0 bg-black/30 dark:bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm sm:w-80 border border-gray-100 dark:border-slate-700">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-slate-700">
+          <div className="flex items-center gap-2 text-gray-800 dark:text-slate-100">
             <SettingsIcon />
-            <span className="text-sm font-bold text-gray-800">Configuración</span>
+            <span className="text-sm font-bold">Configuración</span>
           </div>
-          <button onClick={onClose} className="w-7 h-7 rounded-full hover:bg-gray-100 flex items-center justify-center">
+          <button type="button" onClick={onClose} className="w-7 h-7 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 flex items-center justify-center text-gray-600 dark:text-slate-300">
             <CloseIcon />
           </button>
         </div>
         <div className="p-5 space-y-4">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">Notificaciones</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-slate-500 mb-3">Notificaciones</p>
             <div className="space-y-3">
               {[
                 { label: "Notificaciones push",  key: "notif_push",          defaultVal: true  },
@@ -235,14 +286,11 @@ function ConfigModal({ show, onClose }) {
             </div>
           </div>
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">Apariencia</p>
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-600">Modo oscuro</span>
-              <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Próximamente</span>
-            </div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-slate-500 mb-3">Apariencia</p>
+            <DarkModeToggle />
           </div>
-          <div className="pt-2 border-t border-gray-100">
-            <p className="text-xs text-gray-400 text-center">v2.4.1 · Equielect Platform</p>
+          <div className="pt-2 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-400 dark:text-slate-500 text-center">v2.4.1 · Equielect Platform</p>
           </div>
         </div>
       </div>
@@ -260,16 +308,16 @@ function readUserFromStorage() {
 // ── DropItem ──────────────────────────────────────────────────────────────────
 function DropItem({ icon, label, sublabel, onClick, color = "gray" }) {
   const colorMap = {
-    gray: "text-gray-600 hover:text-gray-900 hover:bg-gray-100",
-    red:  "text-red-500 hover:text-red-600 hover:bg-red-50",
+    gray: "text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800",
+    red:  "text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40",
   };
   return (
-    <button onClick={onClick}
+    <button type="button" onClick={onClick}
       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 active:scale-[.98] ${colorMap[color]}`}>
       <span className="opacity-70 flex-shrink-0">{icon}</span>
       <div className="text-left min-w-0">
         <p className="font-semibold leading-tight">{label}</p>
-        {sublabel && <p className="text-[10px] text-gray-400 leading-tight mt-0.5">{sublabel}</p>}
+        {sublabel && <p className="text-[10px] text-gray-400 dark:text-slate-500 leading-tight mt-0.5">{sublabel}</p>}
       </div>
     </button>
   );
@@ -435,8 +483,8 @@ export default function Topbar({ onMenuToggle, mobileDrawerOpen = false }) {
         button { -webkit-tap-highlight-color: transparent; }
       `}</style>
 
-      <header className={`sticky top-0 z-40 w-full bg-white/80 backdrop-blur-md border-b border-gray-100
-        shadow-[0_2px_20px_-4px_rgba(0,0,0,0.08)] ${visible ? "topbar-in" : "opacity-0"}`}>
+      <header className={`sticky top-0 z-40 w-full bg-white/80 dark:bg-[#0d1628]/92 backdrop-blur-md border-b border-gray-100 dark:border-[#FFCD00]/10
+        shadow-[0_2px_20px_-4px_rgba(0,0,0,0.08)] dark:shadow-[0_4px_24px_-4px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,205,0,0.05)] ${visible ? "topbar-in" : "opacity-0"}`}>
         <div className="px-3 sm:px-5 md:px-8 h-14 sm:h-16 flex items-center justify-between gap-2 sm:gap-4">
 
           {/* LEFT: hamburger (mobile/tablet) + título */}
@@ -445,8 +493,8 @@ export default function Topbar({ onMenuToggle, mobileDrawerOpen = false }) {
             <button
               type="button"
               onClick={() => onMenuToggle?.()}
-              className="lg:hidden w-10 h-10 rounded-xl flex items-center justify-center text-gray-600
-                hover:bg-gray-100 active:scale-95 transition-all duration-150 flex-shrink-0 touch-manipulation z-10"
+              className="lg:hidden w-10 h-10 rounded-xl flex items-center justify-center text-gray-600 dark:text-slate-200
+                hover:bg-gray-100 dark:hover:bg-white/10 active:scale-95 transition-all duration-150 flex-shrink-0 touch-manipulation z-10"
               aria-label="Abrir menú"
               aria-expanded={mobileDrawerOpen}
             >
@@ -456,10 +504,10 @@ export default function Topbar({ onMenuToggle, mobileDrawerOpen = false }) {
             <div className="hidden sm:block w-1 h-7 rounded-full bg-gradient-to-b from-[#F5C800] to-[#e0a800] flex-shrink-0" />
 
             <div className="min-w-0">
-              <p className="text-[10px] sm:text-[11px] font-medium text-gray-400 uppercase tracking-widest leading-none mb-0.5">
+              <p className="text-[10px] sm:text-[11px] font-medium text-gray-400 dark:text-slate-400 uppercase tracking-widest leading-none mb-0.5">
                 Bienvenido de vuelta
               </p>
-              <p className="text-sm sm:text-[15px] font-bold text-gray-800 truncate leading-tight">
+              <p className="text-sm sm:text-[15px] font-bold text-gray-800 dark:text-white truncate leading-tight">
                 {rolLabel}
               </p>
             </div>
@@ -472,15 +520,15 @@ export default function Topbar({ onMenuToggle, mobileDrawerOpen = false }) {
             <div className="relative">
               <button
                 onClick={() => { setShowNotifs((v) => !v); setOpen(false); }}
-                className="relative w-9 h-9 rounded-xl flex items-center justify-center text-gray-500
-                  hover:text-gray-800 hover:bg-gray-100 active:scale-95 transition-all duration-150"
+                className="relative w-9 h-9 rounded-xl flex items-center justify-center text-gray-500 dark:text-slate-300
+                  hover:text-gray-800 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 active:scale-95 transition-all duration-150"
                 aria-label="Notificaciones"
               >
                 <BellIcon />
                 {unreadCount > 0 && (
                   <span className="absolute top-1.5 right-1.5 min-w-[14px] h-3.5 px-0.5 rounded-full
-                    bg-[#F5C800] ring-2 ring-white flex items-center justify-center notif-pulse">
-                    <span className="text-[8px] font-black text-[#1C355E] leading-none">{unreadCount}</span>
+                    bg-[#F5C800] ring-2 ring-white dark:ring-[#0d1628] flex items-center justify-center notif-pulse">
+                    <span className="text-[8px] font-black text-[#1C355E] dark:text-[#0d1628] leading-none">{unreadCount}</span>
                   </span>
                 )}
               </button>
@@ -494,36 +542,36 @@ export default function Topbar({ onMenuToggle, mobileDrawerOpen = false }) {
               />
             </div>
 
-            <div className="w-px h-6 bg-gray-200 mx-0.5 sm:mx-1" />
+            <div className="w-px h-6 bg-gray-200 dark:bg-slate-600 mx-0.5 sm:mx-1" />
 
             {/* Avatar dropdown */}
             <div className="relative" ref={dropRef}>
               <button
                 onClick={() => { setOpen(!open); setShowNotifs(false); }}
                 className="flex items-center gap-1.5 sm:gap-2.5 pl-1 pr-2 sm:pr-3 py-1 rounded-xl
-                  hover:bg-gray-100 active:scale-95 transition-all duration-150 group"
+                  hover:bg-gray-100 dark:hover:bg-slate-800 active:scale-95 transition-all duration-150 group"
                 aria-label="Menú de usuario"
               >
                 <Avatar user={user} />
                 {/* Nombre solo en md+ */}
-                <span className="hidden md:block text-sm font-semibold text-gray-700 max-w-[120px] truncate">
+                <span className="hidden sm:block text-sm font-semibold text-gray-800 dark:text-white max-w-[160px] truncate">
                   {fullName}
                 </span>
-                <span className="text-gray-400 group-hover:text-gray-600 transition-colors hidden sm:block">
+                <span className="text-gray-400 dark:text-slate-500 group-hover:text-gray-600 dark:group-hover:text-slate-300 transition-colors hidden sm:block">
                   <ChevronIcon open={open} />
                 </span>
               </button>
 
               {open && (
-                <div className="dropdown-in absolute right-0 mt-2 w-64 bg-white rounded-2xl
-                  shadow-[0_8px_40px_-8px_rgba(0,0,0,0.18)] border border-gray-100 overflow-hidden z-50">
+                <div className="dropdown-in absolute right-0 mt-2 w-64 bg-white dark:bg-slate-900 rounded-2xl
+                  shadow-[0_8px_40px_-8px_rgba(0,0,0,0.18)] dark:shadow-[0_8px_40px_-8px_rgba(0,0,0,0.5)] border border-gray-100 dark:border-slate-700 overflow-hidden z-50">
                   {/* User card */}
-                  <div className="px-4 pt-4 pb-3 bg-gradient-to-br from-gray-50 to-white border-b border-gray-100">
+                  <div className="px-4 pt-4 pb-3 bg-gradient-to-br from-gray-50 to-white dark:from-slate-800 dark:to-slate-900 border-b border-gray-100 dark:border-slate-700">
                     <div className="flex items-center gap-3">
                       <Avatar user={user} size="lg" />
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-gray-800 truncate">{fullName}</p>
-                        <p className="text-xs text-gray-400 truncate">C.C. {user?.cedula || "—"}</p>
+                        <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{fullName}</p>
+                        <p className="text-xs text-gray-400 dark:text-slate-500 truncate">C.C. {user?.cedula || "—"}</p>
                         <span className={`mt-1 inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${roleBadge.bg} ${roleBadge.text}`}>
                           {roleBadge.label}
                         </span>
@@ -536,7 +584,7 @@ export default function Topbar({ onMenuToggle, mobileDrawerOpen = false }) {
                     <DropItem icon={<SettingsIcon />} label="Configuración" sublabel="Notificaciones y preferencias"
                       onClick={() => { setOpen(false); setShowConfig(true); }} color="gray" />
                   </div>
-                  <div className="p-1.5 border-t border-gray-100">
+                  <div className="p-1.5 border-t border-gray-100 dark:border-slate-700">
                     <DropItem icon={<LogoutIcon />} label="Cerrar sesión" onClick={handleLogout} color="red" />
                   </div>
                 </div>

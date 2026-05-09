@@ -119,16 +119,16 @@ export default function AdvisorTaskUrgencyModal() {
             ¡Atención!
           </p>
         </div>
-        <div className="px-5 py-6 bg-white">
-          <p className="text-sm font-semibold text-red-900 leading-relaxed text-center">
+        <div className="px-5 py-6 bg-white dark:bg-[#1a1f2e]">
+          <p className="text-sm font-semibold text-red-900 dark:text-red-100 leading-relaxed text-center">
             Tienes tareas pendientes por completar en <span className="font-black">{empresa}</span>.
             Complétalas antes de que se acabe el tiempo.
           </p>
-          <p className="text-xs text-red-800/80 text-center mt-3 font-medium">
+          <p className="text-xs text-red-800/80 dark:text-red-300/90 text-center mt-3 font-medium">
             Debes confirmar con el botón inferior para continuar usando la plataforma.
           </p>
         </div>
-        <div className="px-5 pb-5 pt-0 bg-white">
+        <div className="px-5 pb-5 pt-0 bg-white dark:bg-[#1a1f2e]">
           <button
             type="button"
             disabled={submitting}

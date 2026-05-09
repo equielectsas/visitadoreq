@@ -91,7 +91,7 @@ function ChevronIcon({ open }) {
 function SectionLabel({ label }) {
   return (
     <div className="px-6 pt-5 pb-1">
-      <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-600">{label}</span>
+      <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-600 dark:text-slate-400">{label}</span>
     </div>
   );
 }
@@ -101,8 +101,8 @@ function NavItem({ href, icon, label, pathname, onNavigate }) {
     <Link href={href} onClick={onNavigate}>
       <span className={`group flex items-center gap-3 px-4 py-2.5 rounded-xl mx-2 text-sm font-medium transition-all duration-200 cursor-pointer
         ${isActive ? "bg-[#FFCD00] text-[#1C355E] shadow-[0_4px_14px_-2px_rgba(255,205,0,0.4)]"
-          : "text-gray-300 hover:bg-white/8 hover:text-white"}`}>
-        <span className={`transition-colors flex-shrink-0 ${isActive ? "text-[#1C355E]" : "text-gray-500 group-hover:text-[#FFCD00]"}`}>
+          : "text-gray-300 dark:text-slate-200 hover:bg-white/8 hover:text-white"}`}>
+        <span className={`transition-colors flex-shrink-0 ${isActive ? "text-[#1C355E]" : "text-gray-500 dark:text-slate-400 group-hover:text-[#FFCD00]"}`}>
           {icon}
         </span>
         <span className="flex-1">{label}</span>
@@ -129,7 +129,7 @@ function SubItem({ href, label, dotColor, pathname, onNavigate }) {
   return (
     <Link href={href} onClick={onNavigate}>
       <span className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer
-        ${isActive ? "text-[#FFCD00] bg-white/5" : "text-gray-400 hover:text-white hover:bg-white/5"}`}>
+        ${isActive ? "text-[#FFCD00] bg-white/5" : "text-gray-400 dark:text-slate-300 hover:text-white hover:bg-white/5"}`}>
         <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? "bg-[#FFCD00]" : dotColor}`} />
         {label}
       </span>
@@ -142,13 +142,13 @@ function NavGroup({ icon, label, isOpen, onToggle, children, pathname, basePath 
     <div>
       <button onClick={onToggle} style={{ width: "calc(100% - 16px)" }}
         className={`group flex items-center gap-3 px-4 py-2.5 rounded-xl mx-2 text-sm font-medium transition-all duration-200
-          ${isChildActive && !isOpen ? "bg-white/8 text-white" : "text-gray-300 hover:bg-white/8 hover:text-white"}`}>
-        <span className={`flex-shrink-0 transition-colors ${isChildActive ? "text-[#FFCD00]" : "text-gray-500 group-hover:text-[#FFCD00]"}`}>
+          ${isChildActive && !isOpen ? "bg-white/8 text-white" : "text-gray-300 dark:text-slate-200 hover:bg-white/8 hover:text-white"}`}>
+        <span className={`flex-shrink-0 transition-colors ${isChildActive ? "text-[#FFCD00]" : "text-gray-500 dark:text-slate-400 group-hover:text-[#FFCD00]"}`}>
           {icon}
         </span>
         <span className="flex-1 text-left">{label}</span>
         {isChildActive && !isOpen && <span className="w-1.5 h-1.5 rounded-full bg-[#FFCD00] mr-1 flex-shrink-0" />}
-        <span className={`transition-colors flex-shrink-0 ${isChildActive ? "text-[#FFCD00]" : "text-gray-500 group-hover:text-gray-300"}`}>
+        <span className={`transition-colors flex-shrink-0 ${isChildActive ? "text-[#FFCD00]" : "text-gray-500 dark:text-slate-500 group-hover:text-gray-300 dark:group-hover:text-slate-300"}`}>
           <ChevronIcon open={isOpen} />
         </span>
       </button>
@@ -190,8 +190,8 @@ function SidebarContent({ rol, openMenu, toggleMenu, pathname, onNavigate }) {
       <div className="px-4 pt-4 pb-1">
         <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-white/6 border border-white/8">
           <div className="flex flex-col flex-1 min-w-0">
-            <p className="text-[10px] text-[#98989A] font-semibold uppercase tracking-widest leading-none">Panel</p>
-            <p className="text-white text-xs font-bold leading-tight mt-0.5 truncate">
+            <p className="text-[10px] text-[#98989A] dark:text-slate-400 font-semibold uppercase tracking-widest leading-none">Panel</p>
+            <p className="text-white dark:text-white text-xs font-bold leading-tight mt-0.5 truncate drop-shadow-sm">
               {ROL_LABELS[rol] || rol || "Cargando..."}
             </p>
           </div>
@@ -236,7 +236,7 @@ function SidebarContent({ rol, openMenu, toggleMenu, pathname, onNavigate }) {
         ))}
         {!rol && (
           <div className="px-6 py-4">
-            <p className="text-xs text-gray-500">Cargando menú...</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400">Cargando menú...</p>
           </div>
         )}
       </nav>
@@ -251,7 +251,7 @@ function SidebarContent({ rol, openMenu, toggleMenu, pathname, onNavigate }) {
           </div>
           <div>
             <p className="text-[10px] text-[#98989A] font-medium leading-none">Version</p>
-            <p className="text-gray-400 text-xs font-semibold leading-tight mt-0.5">v2.4.1 &bull; Estable</p>
+            <p className="text-gray-400 dark:text-slate-300 text-xs font-semibold leading-tight mt-0.5">v2.4.1 &bull; Estable</p>
           </div>
         </div>
       </div>
@@ -318,8 +318,8 @@ export default function Sidebar({ mobileOpen = false, onClose = () => {} }) {
 
       {/* ── DESKTOP sidebar (oculto en mobile/tablet) ── */}
       <aside className={`hidden lg:flex flex-col w-64 min-h-screen flex-shrink-0
-        bg-[#1C355E] border-r border-white/5
-        shadow-[4px_0_28px_-4px_rgba(0,0,0,0.35)]
+        bg-[#1C355E] dark:bg-[#0a1628] border-r border-white/5 dark:border-[#FFCD00]/12
+        shadow-[4px_0_28px_-4px_rgba(0,0,0,0.35)] dark:shadow-[4px_0_32px_-4px_rgba(0,0,0,0.65),inset_-1px_0_0_rgba(255,205,0,0.06)]
         ${mounted ? "sidebar-in" : "opacity-0"}`}>
         <SidebarContent {...sharedProps} onNavigate={() => {}} />
       </aside>
@@ -334,8 +334,8 @@ export default function Sidebar({ mobileOpen = false, onClose = () => {} }) {
           />
           {/* Drawer panel */}
           <aside className="relative z-10 flex flex-col w-72 max-w-[85vw] min-h-screen
-            bg-[#1C355E] border-r border-white/5
-            shadow-[4px_0_40px_-4px_rgba(0,0,0,0.5)]
+            bg-[#1C355E] dark:bg-[#0a1628] border-r border-white/5 dark:border-[#FFCD00]/12
+            shadow-[4px_0_40px_-4px_rgba(0,0,0,0.5)] dark:shadow-[4px_0_40px_-4px_rgba(0,0,0,0.7),inset_-1px_0_0_rgba(255,205,0,0.06)]
             drawer-in">
             {/* Close button */}
             <button

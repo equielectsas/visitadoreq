@@ -43,6 +43,24 @@ export function markChequeoEnviado(user, tipoTransporte) {
   window.dispatchEvent(new Event("chequeo-vehiculo-updated"));
 }
 
+/** Clave en `completados` según el tipo elegido en el formulario de chequeo */
+export function transporteChequeoFromTipoForm(tipoForm) {
+  if (tipoForm === "moto") return "Motocicleta";
+  if (tipoForm === "publico") return "Transporte Público";
+  if (tipoForm === "carro") return "Carro";
+  return null;
+}
+
+/** Ya se envió hoy (fecha Bogotá) el chequeo para ese tipo de formulario */
+export function isChequeoEnviadoHoyParaTipo(user, tipoForm) {
+  const transporte = transporteChequeoFromTipoForm(tipoForm);
+  if (!transporte) return false;
+  const st = getChequeoVehiculoState(user);
+  const hoy = colombiaDateYmd();
+  if (!st || st.fechaYmd !== hoy) return false;
+  return Boolean(st.completados?.[transporte]);
+}
+
 /** ¿Puede cerrar la visita con este tipo de transporte? */
 export function chequeoCumpleParaCerrarVisita(user, tipoVehiculo) {
   if (!tipoVehiculo) return true;

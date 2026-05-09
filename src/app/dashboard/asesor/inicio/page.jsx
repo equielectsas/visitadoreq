@@ -124,16 +124,16 @@ const EyeIcon = () => (
 // ── Stat Card ─────────────────────────────────────────────────────────────────
 function StatCard({ icon, label, value, sub, accent, trend }) {
   return (
-    <div className="relative bg-white rounded-2xl p-5 overflow-hidden border border-gray-100
-      shadow-[0_2px_16px_-4px_rgba(28,53,94,0.10)] hover:shadow-[0_6px_28px_-4px_rgba(28,53,94,0.16)] transition-shadow duration-300">
+    <div className="relative bg-white rounded-2xl p-5 overflow-hidden border border-gray-100 dark:border-slate-600
+      shadow-[0_2px_16px_-4px_rgba(28,53,94,0.10)] hover:shadow-[0_6px_28px_-4px_rgba(28,53,94,0.16)] dark:shadow-[0_4px_24px_-4px_rgba(0,0,0,0.35)] transition-shadow duration-300">
       <div className={`absolute top-0 left-0 right-0 h-1 rounded-t-2xl ${accent}`} />
       <div className="flex items-start justify-between mt-1">
         <div>
-          <p className="text-xs font-semibold text-[#98989A] uppercase tracking-widest mb-1">{label}</p>
-          <p className="text-3xl font-black text-[#1C355E] leading-none">{value}</p>
-          {sub && <p className="text-xs text-[#98989A] mt-1.5 font-medium">{sub}</p>}
+          <p className="text-xs font-semibold text-[#98989A] dark:text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+          <p className="text-3xl font-black text-[#1C355E] dark:text-white leading-none">{value}</p>
+          {sub && <p className="text-xs text-[#98989A] dark:text-slate-400 mt-1.5 font-medium">{sub}</p>}
         </div>
-        <div className="w-10 h-10 rounded-xl bg-[#1C355E]/6 flex items-center justify-center text-[#1C355E] flex-shrink-0">
+        <div className="w-10 h-10 rounded-xl bg-[#1C355E]/6 dark:bg-[#FFCD00]/15 flex items-center justify-center text-[#1C355E] dark:text-[#FFCD00] flex-shrink-0">
           {icon}
         </div>
       </div>
@@ -419,9 +419,9 @@ export default function AsesorDashboard() {
         asesorFallbackNombre={user?.nombre}
       />
 
-      <main className="flex-1 bg-[#F4F6FA] p-4 sm:p-6 md:p-8 min-h-screen">
+      <main className="flex-1 bg-[#F4F6FA] dark:bg-transparent p-4 sm:p-6 md:p-8 min-h-screen">
         {error && (
-          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700 font-semibold">
+          <div className="mb-6 rounded-2xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-5 py-4 text-sm text-red-700 dark:text-red-200 font-semibold">
             {error}
           </div>
         )}
@@ -429,23 +429,23 @@ export default function AsesorDashboard() {
         {/* Title */}
         <div className="fade-up fade-up-1 mb-7 flex items-center justify-between flex-wrap gap-3">
           <div>
-            <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest mb-0.5">Mi Panel</p>
-            <h1 className="text-2xl font-black text-[#1C355E] leading-tight">
+            <p className="text-xs font-bold text-[#98989A] dark:text-slate-400 uppercase tracking-widest mb-0.5">Mi Panel</p>
+            <h1 className="text-2xl font-black text-[#1C355E] dark:text-white leading-tight">
               Hola, {user?.nombre?.split(" ")[0] || "Asesor"} 👋
             </h1>
           </div>
-          <div className="text-xs text-[#98989A] font-medium bg-white border border-gray-200 px-3 py-1.5 rounded-lg shadow-sm">
+          <div className="text-xs text-[#98989A] dark:text-slate-300 font-medium bg-white dark:bg-eqDark-surface border border-gray-200 dark:border-slate-600 px-3 py-1.5 rounded-lg shadow-sm">
             {new Date().toLocaleDateString("es-CO", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
           </div>
         </div>
 
         <div className="fade-up fade-up-1 mb-7 flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-[#98989A] uppercase tracking-widest">Mes</span>
+            <span className="text-xs font-bold text-[#98989A] dark:text-slate-400 uppercase tracking-widest">Mes</span>
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="text-sm font-bold text-[#1C355E] bg-white border border-gray-200 rounded-xl px-3 py-2 outline-none"
+              className="text-sm font-bold text-[#1C355E] dark:text-white bg-white dark:bg-[#0f1c2e] border border-gray-200 dark:border-slate-600 rounded-xl px-3 py-2 outline-none"
               disabled={loading}
             >
               {months.length === 0 ? <option value={selectedMonth}>{ymLabel(selectedMonth)}</option> : null}
@@ -458,9 +458,9 @@ export default function AsesorDashboard() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="text-xs text-[#98989A] font-medium bg-white border border-gray-200 px-3 py-2 rounded-xl shadow-sm">
-              Objetivo: <span className="font-black text-[#1C355E]">{monthlyGoal}</span> visitas finalizadas · Cumplimiento{" "}
-              <span className="font-black text-[#1C355E]">{cumplimientoPctLabel}%</span>
+            <div className="text-xs text-[#98989A] dark:text-slate-300 font-medium bg-white dark:bg-eqDark-surface border border-gray-200 dark:border-slate-600 px-3 py-2 rounded-xl shadow-sm">
+              Objetivo: <span className="font-black text-[#1C355E] dark:text-[#FFCD00]">{monthlyGoal}</span> visitas finalizadas · Cumplimiento{" "}
+              <span className="font-black text-[#1C355E] dark:text-[#FFCD00]">{cumplimientoPctLabel}%</span>
             </div>
             <button
               type="button"
@@ -511,16 +511,16 @@ export default function AsesorDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-7">
 
           {/* Barras por mes */}
-          <div className="fade-up fade-up-3 lg:col-span-3 bg-white rounded-2xl p-6 border border-gray-100 shadow-[0_2px_16px_-4px_rgba(28,53,94,0.08)]">
+          <div className="fade-up fade-up-3 lg:col-span-3 bg-white rounded-2xl p-6 border border-gray-100 dark:border-slate-600 shadow-[0_2px_16px_-4px_rgba(28,53,94,0.08)] dark:shadow-[0_4px_24px_-4px_rgba(0,0,0,0.35)]">
             <div className="flex items-center justify-between mb-2">
               <div>
-                <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest">Mis visitas</p>
-                <p className="text-lg font-black text-[#1C355E] mt-0.5">Histórico por mes</p>
-                <p className="text-[11px] text-[#98989A] mt-1">
+                <p className="text-xs font-bold text-[#98989A] dark:text-slate-400 uppercase tracking-widest">Mis visitas</p>
+                <p className="text-lg font-black text-[#1C355E] dark:text-white mt-0.5">Histórico por mes</p>
+                <p className="text-[11px] text-[#98989A] dark:text-slate-400 mt-1">
                   Cada barra es un mes con datos; el anillo indica el mes seleccionado arriba ({ymLabel(selectedMonth) || "—"}).
                 </p>
               </div>
-              <span className="text-[11px] font-semibold text-[#1C355E] bg-[#1C355E]/6 px-3 py-1 rounded-full shrink-0">
+              <span className="text-[11px] font-semibold text-[#1C355E] dark:text-[#FFCD00] bg-[#1C355E]/6 dark:bg-[#FFCD00]/15 px-3 py-1 rounded-full shrink-0">
                 {loading ? "Cargando…" : `${monthlyBarsData.length} mes(es)`}
               </span>
             </div>
@@ -533,7 +533,7 @@ export default function AsesorDashboard() {
               ].map((l) => (
                 <div key={l.label} className="flex items-center gap-1.5">
                   <span className={`w-2.5 h-2.5 rounded-sm ${l.color}`} />
-                  <span className="text-[10px] text-gray-400 font-medium">{l.label}</span>
+                  <span className="text-[10px] text-gray-400 dark:text-slate-400 font-medium">{l.label}</span>
                 </div>
               ))}
             </div>
@@ -541,9 +541,9 @@ export default function AsesorDashboard() {
           </div>
 
           {/* Donut chart */}
-          <div className="fade-up fade-up-4 lg:col-span-2 bg-white rounded-2xl p-6 border border-gray-100 shadow-[0_2px_16px_-4px_rgba(28,53,94,0.08)]">
-            <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest mb-1">Distribución</p>
-            <p className="text-lg font-black text-[#1C355E] mb-4">Por estado</p>
+          <div className="fade-up fade-up-4 lg:col-span-2 bg-white rounded-2xl p-6 border border-gray-100 dark:border-slate-600 shadow-[0_2px_16px_-4px_rgba(28,53,94,0.08)] dark:shadow-[0_4px_24px_-4px_rgba(0,0,0,0.35)]">
+            <p className="text-xs font-bold text-[#98989A] dark:text-slate-400 uppercase tracking-widest mb-1">Distribución</p>
+            <p className="text-lg font-black text-[#1C355E] dark:text-white mb-4">Por estado</p>
             <div className="flex items-center justify-center mb-4">
               <DonutChart segments={donutSegments} size={130} />
             </div>
@@ -555,10 +555,10 @@ export default function AsesorDashboard() {
                       className="w-2.5 h-2.5 rounded-full"
                       style={{ backgroundColor: item.color }}
                     />
-                    <span className="text-xs font-medium text-gray-500">{item.label}</span>
+                    <span className="text-xs font-medium text-gray-500 dark:text-slate-300">{item.label}</span>
                   </div>
-                  <span className="text-xs font-black text-[#1C355E]">
-                    {item.pct}% <span className="text-[#98989A] font-semibold">({item.value})</span>
+                  <span className="text-xs font-black text-[#1C355E] dark:text-[#FFCD00]">
+                    {item.pct}% <span className="text-[#98989A] dark:text-slate-400 font-semibold">({item.value})</span>
                   </span>
                 </div>
               ))}
@@ -572,21 +572,21 @@ export default function AsesorDashboard() {
         </div>
 
         {/* Table */}
-        <div className="fade-up fade-up-5 bg-white rounded-2xl border border-gray-100 shadow-[0_2px_16px_-4px_rgba(28,53,94,0.08)] overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="fade-up fade-up-5 bg-white rounded-2xl border border-gray-100 dark:border-slate-600 shadow-[0_2px_16px_-4px_rgba(28,53,94,0.08)] dark:shadow-[0_4px_24px_-4px_rgba(0,0,0,0.35)] overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-600 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest">Mis visitas</p>
-              <p className="text-base font-black text-[#1C355E]">Historial personal</p>
-              <p className="text-[11px] text-[#98989A] mt-0.5 font-medium">
-                Mes: <span className="font-bold text-[#1C355E]">{ymLabel(selectedMonth) || "—"}</span>
+              <p className="text-xs font-bold text-[#98989A] dark:text-slate-400 uppercase tracking-widest">Mis visitas</p>
+              <p className="text-base font-black text-[#1C355E] dark:text-white">Historial personal</p>
+              <p className="text-[11px] text-[#98989A] dark:text-slate-400 mt-0.5 font-medium">
+                Mes: <span className="font-bold text-[#1C355E] dark:text-[#FFCD00]">{ymLabel(selectedMonth) || "—"}</span>
                 {" "}· Cambia el mes en el selector superior
               </p>
             </div>
-            <div className="flex items-center gap-1 bg-[#F4F6FA] rounded-xl p-1 flex-wrap">
+            <div className="flex items-center gap-1 bg-[#F4F6FA] dark:bg-[#0f1c2e] rounded-xl p-1 flex-wrap">
               {historialTabs.map(({ key, label }) => (
                 <button key={key} type="button" onClick={() => setActiveTab(key)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200
-                    ${activeTab === key ? "bg-[#1C355E] text-white shadow-sm" : "text-[#98989A] hover:text-[#1C355E]"}`}>
+                    ${activeTab === key ? "bg-[#1C355E] text-white shadow-sm" : "text-[#98989A] dark:text-slate-400 hover:text-[#1C355E] dark:hover:text-[#FFCD00]"}`}>
                   {label}
                 </button>
               ))}
@@ -615,7 +615,7 @@ export default function AsesorDashboard() {
                         <button
                           type="button"
                           onClick={() => setSelectedVisit(v)}
-                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 text-xs font-bold hover:bg-gray-50 hover:border-[#1C355E]/30 hover:text-[#1C355E] transition-all"
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 dark:border-slate-600 text-gray-500 dark:text-slate-400 text-xs font-bold hover:bg-gray-50 dark:hover:bg-white/5 hover:border-[#1C355E]/30 dark:hover:border-[#FFCD00]/30 hover:text-[#1C355E] dark:hover:text-[#FFCD00] transition-all"
                           title="Ver visita"
                         >
                           <EyeIcon /> Ver
@@ -625,7 +625,7 @@ export default function AsesorDashboard() {
                   );
                   }) : (
                   <tr>
-                    <td colSpan={6} className="px-6 py-10 text-center text-[#98989A] text-sm font-medium">
+                    <td colSpan={6} className="px-6 py-10 text-center text-[#98989A] dark:text-slate-400 text-sm font-medium">
                       {monthCitas.length === 0
                         ? "No hay visitas en este mes. Elige otro mes arriba."
                         : "No hay visitas en este filtro para el mes seleccionado"}
@@ -635,17 +635,17 @@ export default function AsesorDashboard() {
               </tbody>
             </table>
           </div>
-          <div className="px-6 py-3 border-t border-gray-100">
-            <p className="text-xs text-[#98989A] font-medium">
-              Mostrando <span className="font-bold text-[#1C355E]">{filtered.length}</span> de{" "}
-              <span className="font-bold text-[#1C355E]">{monthCitas.length}</span> en{" "}
-              <span className="font-semibold">{ymLabel(selectedMonth) || "—"}</span>
+          <div className="px-6 py-3 border-t border-gray-100 dark:border-slate-600">
+            <p className="text-xs text-[#98989A] dark:text-slate-400 font-medium">
+              Mostrando <span className="font-bold text-[#1C355E] dark:text-[#FFCD00]">{filtered.length}</span> de{" "}
+              <span className="font-bold text-[#1C355E] dark:text-[#FFCD00]">{monthCitas.length}</span> en{" "}
+              <span className="font-semibold text-[#1C355E] dark:text-slate-200">{ymLabel(selectedMonth) || "—"}</span>
             </p>
           </div>
         </div>
 
         <div className="fade-up fade-up-6 mt-6 text-center">
-          <p className="text-xs text-[#98989A] font-medium">Equielect · Panel Asesor · v2.4.1</p>
+          <p className="text-xs text-[#98989A] dark:text-slate-500 font-medium">Equielect · Panel Asesor · v2.4.1</p>
         </div>
       </main>
     </LayoutDashboard>

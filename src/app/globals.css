@@ -5,10 +5,166 @@
 :root {
   --color-primary: #FFCD00;
   --color-secondary: #1C355E;
+  --eq-page-bg: #f6f8fb;
+  --eq-surface: #ffffff;
+  --eq-surface-soft: #f9fafb;
+  --eq-border: rgba(28, 53, 94, 0.1);
+  --eq-text: #111827;
+  --eq-text-muted: #6b7280;
+  --eq-heading: #1C355E;
+}
+
+html.dark {
+  color-scheme: dark;
+  --eq-page-bg: #060a12;
+  --eq-surface: #152238;
+  --eq-surface-soft: #1a2d44;
+  --eq-border: rgba(255, 205, 0, 0.14);
+  --eq-border-muted: rgba(124, 154, 188, 0.22);
+  --eq-text: #e8edf4;
+  --eq-text-secondary: #b8c5da;
+  --eq-text-muted: #8b9cb8;
+  --eq-heading: #f0f4ff;
+  --eq-accent-glow: rgba(255, 205, 0, 0.07);
 }
 
 body {
   font-family: 'Inter', 'Montserrat', sans-serif;
+}
+
+html.dark body {
+  background-color: var(--eq-page-bg);
+  color: var(--eq-text);
+}
+
+/* ─── Área principal del dashboard: profundidad y brillo marca ─── */
+html.dark .eq-main {
+  background:
+    radial-gradient(ellipse 120% 80% at 50% -30%, var(--eq-accent-glow), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 100% 100%, rgba(28, 53, 94, 0.35), transparent 50%),
+    linear-gradient(180deg, #0a101c 0%, #0c1526 45%, #090e18 100%);
+}
+
+/* ─── Dashboard: tarjetas blancas → superficie marina ─── */
+html.dark .eq-dashboard .bg-white {
+  background-color: var(--eq-surface) !important;
+}
+
+html.dark .eq-dashboard .bg-white\/80 {
+  background-color: rgba(21, 34, 56, 0.9) !important;
+}
+
+html.dark .eq-dashboard .bg-gray-50,
+html.dark .eq-dashboard .bg-gray-50\/60 {
+  background-color: rgba(26, 45, 68, 0.65) !important;
+}
+
+html.dark .eq-dashboard .bg-gray-100 {
+  background-color: rgba(21, 36, 58, 0.85) !important;
+}
+
+html.dark .eq-dashboard .hover\:bg-gray-50:hover,
+html.dark .eq-dashboard .hover\:bg-gray-100:hover {
+  background-color: rgba(30, 53, 80, 0.9) !important;
+}
+
+html.dark .eq-dashboard .border-gray-100,
+html.dark .eq-dashboard .border-gray-200 {
+  border-color: var(--eq-border-muted) !important;
+}
+
+html.dark .eq-dashboard .divide-gray-50 > :not([hidden]) ~ :not([hidden]),
+html.dark .eq-dashboard .divide-gray-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--eq-border-muted) !important;
+}
+
+html.dark .eq-dashboard .ring-gray-100 {
+  --tw-ring-color: var(--eq-border-muted) !important;
+}
+
+/* Textos */
+html.dark .eq-dashboard .text-gray-900,
+html.dark .eq-dashboard .text-gray-800,
+html.dark .eq-dashboard .text-gray-700 {
+  color: var(--eq-text) !important;
+}
+
+html.dark .eq-dashboard .text-gray-600 {
+  color: var(--eq-text-secondary) !important;
+}
+
+html.dark .eq-dashboard .text-gray-500,
+html.dark .eq-dashboard .text-gray-400 {
+  color: var(--eq-text-muted) !important;
+}
+
+/* Texto gris claro legible sobre fondos oscuros (sidebar / filas) */
+html.dark .eq-dashboard .text-gray-300 {
+  color: #cfd8e6 !important;
+}
+
+/* Marca: números y títulos que usan azul corporativo */
+html.dark .eq-dashboard [class*="text-[#1C355E]"] {
+  color: #e8f0ff !important;
+}
+
+html.dark .eq-dashboard [class*="text-[#98989A]"] {
+  color: var(--eq-text-muted) !important;
+}
+
+/* Bordes dashed suaves */
+html.dark .eq-dashboard .border-dashed.border-gray-200 {
+  border-color: rgba(124, 154, 188, 0.28) !important;
+}
+
+/* Inputs y selects dentro del dashboard */
+html.dark .eq-dashboard input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html.dark .eq-dashboard textarea,
+html.dark .eq-dashboard select {
+  background-color: #0f1c2e !important;
+  border-color: #3d5678 !important;
+  color: var(--eq-text) !important;
+}
+
+html.dark .eq-dashboard input::placeholder,
+html.dark .eq-dashboard textarea::placeholder {
+  color: #6b7c99 !important;
+}
+
+/* Sombras de tarjeta en oscuro */
+html.dark .eq-dashboard .shadow-sm {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 205, 0, 0.06) !important;
+}
+
+/* ─── Login (auth-screen) ─── */
+html.dark .auth-screen {
+  background: linear-gradient(165deg, #060a12 0%, #0f1a2e 50%, #080d18 100%) !important;
+}
+
+html.dark .auth-screen .bg-gray-100 {
+  background-color: transparent !important;
+}
+
+html.dark .auth-screen .border-gray-300 {
+  border-color: var(--eq-border-muted) !important;
+}
+
+html.dark .auth-screen input[type="text"],
+html.dark .auth-screen input[type="password"] {
+  background-color: var(--eq-surface) !important;
+  border-color: #3d5678 !important;
+  color: var(--eq-text) !important;
+}
+
+html.dark .auth-screen .text-gray-700,
+html.dark .auth-screen .text-gray-600 {
+  color: var(--eq-text-secondary) !important;
+}
+
+html.dark .auth-screen .text-gray-400 {
+  color: var(--eq-text-muted) !important;
 }
 
 @layer utilities {

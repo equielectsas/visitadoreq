@@ -4,10 +4,10 @@ import VisitaUbicacionMapa from "@/components/VisitaUbicacionMapa";
 import { geoCoordsValidas, nombreAsesorDesdeVisita, fechaHoraVisualDesdeVisita } from "@/utils/visitasHelpers";
 
 const ESTADO_CONFIG = {
-  pendiente: { label: "Pendiente", cls: "bg-yellow-100 text-yellow-700" },
-  activa: { label: "Activa", cls: "bg-emerald-100 text-emerald-700" },
-  realizada: { label: "Realizada", cls: "bg-blue-100 text-blue-700" },
-  reprogramada: { label: "Reprogramada", cls: "bg-purple-100 text-purple-700" },
+  pendiente: { label: "Pendiente", cls: "bg-yellow-100 text-yellow-700 dark:bg-amber-900/45 dark:text-amber-100" },
+  activa: { label: "Activa", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200" },
+  realizada: { label: "Realizada", cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200" },
+  reprogramada: { label: "Reprogramada", cls: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200" },
 };
 
 const CalIcon = () => (
@@ -28,7 +28,7 @@ function Modal({ show, onClose, children, wide = false }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div
-        className={`relative z-10 bg-white rounded-3xl shadow-2xl w-full ${wide ? "max-w-3xl" : "max-w-md"} max-h-[92vh] overflow-y-auto`}
+        className={`relative z-10 bg-white dark:bg-eqDark-surface rounded-3xl shadow-2xl dark:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.65),0_0_0_1px_rgba(255,205,0,0.06)] w-full ${wide ? "max-w-3xl" : "max-w-md"} max-h-[92vh] overflow-y-auto border border-transparent dark:border-[#FFCD00]/10`}
       >
         {children}
       </div>
@@ -39,8 +39,8 @@ function Modal({ show, onClose, children, wide = false }) {
 function ReadonlyField({ label, value }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{label}</label>
-      <div className="w-full px-4 py-3 rounded-xl border border-dashed border-gray-200 bg-gray-50/80 text-sm font-medium text-gray-800 select-none">
+      <label className="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wide">{label}</label>
+      <div className="w-full px-4 py-3 rounded-xl border border-dashed border-gray-200 dark:border-slate-600 bg-gray-50/80 dark:bg-[#0f1c2e] text-sm font-medium text-gray-800 dark:text-slate-100 select-none">
         {value || "—"}
       </div>
     </div>
@@ -78,11 +78,11 @@ export default function VisualizarVisitaModal({ show, onClose, cita, asesorFallb
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest">Visita</p>
-            <h2 className="text-xl font-black text-[#1C355E] truncate">{esActiva ? "Visita en curso" : empresa}</h2>
+            <h2 className="text-xl font-black text-[#1C355E] dark:text-slate-50 truncate">{esActiva ? "Visita en curso" : empresa}</h2>
             <div className="mt-2 flex items-center gap-2 flex-wrap">
               <EstadoBadge estado={cita?.estado} />
               {!esVistaBasica && visualFh.fecha && (
-                <span className="text-xs text-gray-400 font-semibold flex items-center gap-1">
+                <span className="text-xs text-gray-400 dark:text-slate-500 font-semibold flex items-center gap-1">
                   <CalIcon /> {visualFh.fecha}
                   {visualFh.hora ? ` · ${visualFh.hora}` : ""}
                 </span>
@@ -95,7 +95,7 @@ export default function VisualizarVisitaModal({ show, onClose, cita, asesorFallb
           <button
             type="button"
             onClick={onClose}
-            className="w-10 h-10 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center flex-shrink-0"
+            className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-white/10 flex items-center justify-center flex-shrink-0"
             aria-label="Cerrar"
           >
             <CloseIcon />
@@ -147,13 +147,13 @@ export default function VisualizarVisitaModal({ show, onClose, cita, asesorFallb
                       href={`https://www.google.com/maps?q=${geoParsed.lat},${geoParsed.lng}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-2 inline-block text-xs font-semibold text-[#1C355E] hover:underline"
+                      className="mt-2 inline-block text-xs font-semibold text-[#1C355E] dark:text-[#FFCD00] hover:underline"
                     >
                       Abrir en Google Maps
                     </a>
                   </>
                 ) : (
-                  <p className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">
+                  <p className="rounded-xl border border-dashed border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-[#0f1c2e] px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                     No se registró ubicación para esta visita.
                   </p>
                 )}
@@ -165,12 +165,12 @@ export default function VisualizarVisitaModal({ show, onClose, cita, asesorFallb
               {tareas.length > 0 ? (
                 <div className="space-y-2">
                   {tareas.map((t, idx) => (
-                    <div key={idx} className="flex items-start gap-2 px-4 py-3 rounded-xl border border-gray-100 bg-gray-50">
+                    <div key={idx} className="flex items-start gap-2 px-4 py-3 rounded-xl border border-gray-100 dark:border-slate-600 bg-gray-50 dark:bg-[#0f1c2e]">
                       <span className={`mt-0.5 text-xs font-black ${t?.done ? "text-emerald-600" : "text-gray-400"}`}>
                         {t?.done ? "✓" : "•"}
                       </span>
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-gray-700 break-words">{t?.texto || "—"}</p>
+                        <p className="text-sm font-semibold text-gray-700 dark:text-slate-200 break-words">{t?.texto || "—"}</p>
                       </div>
                     </div>
                   ))}
@@ -183,7 +183,7 @@ export default function VisualizarVisitaModal({ show, onClose, cita, asesorFallb
         )}
 
         {footerActions ? (
-          <div className="mt-6 pt-4 border-t border-gray-100">{footerActions}</div>
+          <div className="mt-6 pt-4 border-t border-gray-100 dark:border-slate-600">{footerActions}</div>
         ) : null}
       </div>
     </Modal>

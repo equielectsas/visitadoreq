@@ -8,6 +8,8 @@ import {
   getChequeoVehiculoState,
   markChequeoEnviado,
   getAuthTokenFromStorage,
+  isChequeoEnviadoHoyParaTipo,
+  transporteChequeoFromTipoForm,
 } from "@/utils/chequeoVehiculoStorage";
 import {
   CARRO_SECCIONES,
@@ -79,6 +81,13 @@ export default function ChequeoVehiculoPage() {
   const motoListo = estadoHoy?.fechaYmd === hoy && estadoHoy?.completados?.Motocicleta;
   const publicoListo = estadoHoy?.fechaYmd === hoy && estadoHoy?.completados?.["Transporte Público"];
 
+  const transporteSeleccionado = transporteChequeoFromTipoForm(tipo);
+  const yaEnviadoEsteTipoHoy = Boolean(
+    transporteSeleccionado &&
+      estadoHoy?.fechaYmd === hoy &&
+      estadoHoy?.completados?.[transporteSeleccionado]
+  );
+
   useEffect(() => {
     if (!tipo) {
       setChecks({});
@@ -139,6 +148,13 @@ export default function ChequeoVehiculoPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    if (!tipo) return;
+    if (isChequeoEnviadoHoyParaTipo(user, tipo)) {
+      setError(
+        "Ya enviaste este chequeo hoy. Solo se permite una vez al día por tipo de transporte. Mañana podrás enviarlo de nuevo."
+      );
+      return;
+    }
     const msg = validar();
     if (msg) {
       setError(msg);
@@ -278,35 +294,96 @@ export default function ChequeoVehiculoPage() {
           <div className="grid sm:grid-cols-3 gap-4">
             <button
               type="button"
-              onClick={() => setTipo("carro")}
-              className="rounded-2xl border-2 border-gray-200 p-8 text-left hover:border-[#1C355E] hover:bg-[#1C355E]/5 transition-all"
+              disabled={carroListo}
+              onClick={() => {
+                if (carroListo) return;
+                setTipo("carro");
+              }}
+              className={`rounded-2xl border-2 p-8 text-left transition-all ${
+                carroListo
+                  ? "border-emerald-200 bg-emerald-50/80 cursor-not-allowed opacity-90"
+                  : "border-gray-200 hover:border-[#1C355E] hover:bg-[#1C355E]/5"
+              }`}
             >
               <p className="text-4xl mb-2">🚗</p>
               <p className="font-black text-[#1C355E]">Chequeo carro</p>
-              <p className="text-xs text-gray-500 mt-1">Formulario completo según plataforma</p>
+              {carroListo ? (
+                <p className="text-xs font-bold text-emerald-700 mt-2">Enviado hoy — no puedes repetir hasta mañana</p>
+              ) : (
+                <p className="text-xs text-gray-500 mt-1">Formulario completo según plataforma</p>
+              )}
             </button>
             <button
               type="button"
-              onClick={() => setTipo("moto")}
-              className="rounded-2xl border-2 border-gray-200 p-8 text-left hover:border-[#1C355E] hover:bg-[#1C355E]/5 transition-all"
+              disabled={motoListo}
+              onClick={() => {
+                if (motoListo) return;
+                setTipo("moto");
+              }}
+              className={`rounded-2xl border-2 p-8 text-left transition-all ${
+                motoListo
+                  ? "border-emerald-200 bg-emerald-50/80 cursor-not-allowed opacity-90"
+                  : "border-gray-200 hover:border-[#1C355E] hover:bg-[#1C355E]/5"
+              }`}
             >
               <p className="text-4xl mb-2">🏍️</p>
               <p className="font-black text-[#1C355E]">Chequeo moto</p>
-              <p className="text-xs text-gray-500 mt-1">Formulario completo según plataforma</p>
+              {motoListo ? (
+                <p className="text-xs font-bold text-emerald-700 mt-2">Enviado hoy — no puedes repetir hasta mañana</p>
+              ) : (
+                <p className="text-xs text-gray-500 mt-1">Formulario completo según plataforma</p>
+              )}
             </button>
             <button
               type="button"
-              onClick={() => setTipo("publico")}
-              className="rounded-2xl border-2 border-gray-200 p-8 text-left hover:border-[#1C355E] hover:bg-[#1C355E]/5 transition-all"
+              disabled={publicoListo}
+              onClick={() => {
+                if (publicoListo) return;
+                setTipo("publico");
+              }}
+              className={`rounded-2xl border-2 p-8 text-left transition-all ${
+                publicoListo
+                  ? "border-emerald-200 bg-emerald-50/80 cursor-not-allowed opacity-90"
+                  : "border-gray-200 hover:border-[#1C355E] hover:bg-[#1C355E]/5"
+              }`}
             >
               <p className="text-4xl mb-2">🚌</p>
               <p className="font-black text-[#1C355E]">Chequeo transporte público</p>
-              <p className="text-xs text-gray-500 mt-1">Se llena igual que carro (no pasa derecho)</p>
+              {publicoListo ? (
+                <p className="text-xs font-bold text-emerald-700 mt-2">Enviado hoy — no puedes repetir hasta mañana</p>
+              ) : (
+                <p className="text-xs text-gray-500 mt-1">Se llena igual que carro (no pasa derecho)</p>
+              )}
             </button>
           </div>
         )}
 
-        {tipo && (
+        {tipo && yaEnviadoEsteTipoHoy && (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/90 p-6 shadow-sm space-y-4">
+            <p className="text-sm font-bold text-emerald-900">
+              Ya enviaste el chequeo de{" "}
+              <strong>
+                {tipo === "moto" ? "motocicleta" : tipo === "publico" ? "transporte público" : "carro"}
+              </strong>{" "}
+              hoy ({hoy}). Una sola vez al día por tipo.
+            </p>
+            <p className="text-xs text-emerald-800/90">
+              Mañana (nuevo día en Colombia) podrás volver a enviarlo desde aquí.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setTipo(null);
+                setError("");
+              }}
+              className="text-sm font-bold text-[#1C355E] underline hover:no-underline"
+            >
+              Volver a elegir tipo
+            </button>
+          </div>
+        )}
+
+        {tipo && !yaEnviadoEsteTipoHoy && (
           <form onSubmit={handleSubmit} className="space-y-6 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <h2 className="text-lg font-bold text-gray-800">
@@ -480,7 +557,7 @@ export default function ChequeoVehiculoPage() {
             <button
               type="submit"
               disabled={sending}
-              className="w-full py-4 rounded-xl bg-[#1C355E] text-white font-bold text-sm hover:bg-[#16294d] disabled:opacity-50"
+              className="w-full py-4 rounded-xl bg-[#1C355E] text-white font-bold text-sm hover:bg-[#16294d] disabled:opacity-50 touch-manipulation"
             >
               {sending ? "Enviando…" : "Enviar chequeo al servidor"}
             </button>
