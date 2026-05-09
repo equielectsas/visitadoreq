@@ -279,7 +279,7 @@ function DropItem({ icon, label, sublabel, onClick, color = "gray" }) {
 // TOPBAR
 // Acepta `onMenuToggle` para abrir el sidebar drawer en mobile
 // ─────────────────────────────────────────────────────────────────────────────
-export default function Topbar({ onMenuToggle }) {
+export default function Topbar({ onMenuToggle, mobileDrawerOpen = false }) {
   const [open, setOpen]             = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
@@ -443,10 +443,12 @@ export default function Topbar({ onMenuToggle }) {
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {/* Hamburger — solo visible en lg- */}
             <button
-              onClick={onMenuToggle}
-              className="lg:hidden w-9 h-9 rounded-xl flex items-center justify-center text-gray-600
-                hover:bg-gray-100 active:scale-95 transition-all duration-150 flex-shrink-0"
+              type="button"
+              onClick={() => onMenuToggle?.()}
+              className="lg:hidden w-10 h-10 rounded-xl flex items-center justify-center text-gray-600
+                hover:bg-gray-100 active:scale-95 transition-all duration-150 flex-shrink-0 touch-manipulation z-10"
               aria-label="Abrir menú"
+              aria-expanded={mobileDrawerOpen}
             >
               <MenuIcon />
             </button>

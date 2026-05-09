@@ -84,13 +84,13 @@ const MODAL_STYLES = `
 // ── Success Modal ─────────────────────────────────────────────────────────────
 function SuccessModal({ onClose }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm anim-fadeIn"
         onClick={onClose}
       />
 
-      <div className="relative bg-white rounded-2xl shadow-2xl p-10 flex flex-col items-center gap-4 anim-scaleIn z-10 max-w-sm w-full mx-4">
+      <div className="relative bg-white rounded-2xl shadow-2xl p-6 sm:p-10 flex flex-col items-center gap-4 anim-scaleIn z-10 max-w-sm w-full max-h-[min(90dvh,32rem)] overflow-y-auto">
         <div className="absolute inset-0 rounded-2xl ring-4 ring-green-200 pointer-events-none" />
 
         {/* 👇 AQUÍ CAMBIAS EL ÍCONO POR EL GIF */}
@@ -123,9 +123,9 @@ function SuccessModal({ onClose }) {
 // ── Error Modal ───────────────────────────────────────────────────────────────
 function ErrorModal({ message, onClose }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm anim-fadeIn" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl p-10 flex flex-col items-center gap-4 anim-scaleIn z-10 max-w-sm w-full mx-4">
+      <div className="relative bg-white rounded-2xl shadow-2xl p-6 sm:p-10 flex flex-col items-center gap-4 anim-scaleIn z-10 max-w-sm w-full max-h-[min(90dvh,32rem)] overflow-y-auto">
         <div className="absolute inset-0 rounded-2xl ring-4 ring-red-200 pointer-events-none" />
         <div className="anim-shakeIn"><ErrorCircleIcon /></div>
         <h2 className="text-2xl font-bold text-gray-800 tracking-tight">Credenciales Incorrectas</h2>
@@ -237,29 +237,37 @@ export default function LoginPage() {
         />
       )}
 
-      <div className="min-h-screen bg-gray-100 flex justify-center items-center">
-        <div className="max-w-screen-xl w-full m-0 sm:m-10 shadow-xl sm:rounded-2xl flex flex-1 overflow-hidden">
+      <div className="min-h-screen min-h-[100dvh] w-full bg-gray-100 flex flex-col items-center justify-center box-border px-4 py-8 sm:px-6 sm:py-10">
+        <div
+          className="w-full max-w-md mx-auto flex flex-col justify-center shrink-0
+          lg:max-w-screen-xl lg:mx-0 lg:flex-row lg:items-stretch lg:min-h-[min(100dvh,44rem)] lg:max-h-[calc(100dvh-4rem)]
+          overflow-hidden rounded-2xl bg-gray-100 shadow-none sm:shadow-xl ring-1 ring-black/[0.04] sm:ring-0 lg:bg-transparent"
+        >
 
           {/* LEFT PANEL */}
-          <div className="lg:w-1/2 xl:w-5/12 p-8 sm:p-14 bg-gray-100 flex flex-col justify-center">
+          <div className="w-full lg:w-1/2 xl:w-5/12 px-1 sm:px-8 lg:px-14 py-2 sm:pt-10 sm:pb-12 lg:py-14 bg-gray-100 flex flex-col justify-center items-center lg:items-stretch text-center lg:text-left">
 
-            <div className="flex justify-center mb-10">
+            <div className="flex justify-center w-full mb-6 sm:mb-10">
             <Image
               src="/assets/img/login/logo.png"
               alt="Equielect"
               width={120}
               height={40}
-              className="h-9 w-auto"
+              className="h-8 sm:h-9 w-auto max-w-[min(100%,140px)]"
+              priority
             />
             </div>
 
-            <div className="my-6 border-b border-gray-300 text-center">
-              <span className="relative -bottom-3 px-4 bg-gray-100 text-xs font-bold text-gray-700 uppercase tracking-widest">
+            <div className="my-4 sm:my-6 border-b border-gray-300 w-full max-w-sm mx-auto lg:max-w-none">
+              <span className="relative -bottom-3 inline-block px-3 sm:px-4 bg-gray-100 text-[10px] sm:text-xs font-bold text-gray-700 uppercase tracking-widest">
                 Iniciar sesion
               </span>
             </div>
 
-            <form onSubmit={handleLogin} className="mx-auto w-full max-w-xs space-y-5 mt-4">
+            <form
+              onSubmit={handleLogin}
+              className="w-full max-w-sm mx-auto lg:max-w-none space-y-4 sm:space-y-5 mt-2 sm:mt-4 text-left"
+            >
 
               {/* Cedula */}
               <div className="relative">
@@ -272,7 +280,7 @@ export default function LoginPage() {
                   value={cedula}
                   onChange={(e) => setCedula(e.target.value)}
                   required
-                  className="w-full pl-12 pr-4 py-4 rounded-xl bg-white border border-gray-300 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F5C800] focus:border-transparent transition shadow-sm"
+                  className="w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-xl bg-white border border-gray-300 text-base sm:text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F5C800] focus:border-transparent transition shadow-sm min-h-[48px]"
                 />
               </div>
 
@@ -287,7 +295,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="w-full pl-12 pr-12 py-4 rounded-xl bg-white border border-gray-300 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F5C800] focus:border-transparent transition shadow-sm"
+                  className="w-full pl-12 pr-12 py-3.5 sm:py-4 rounded-xl bg-white border border-gray-300 text-base sm:text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F5C800] focus:border-transparent transition shadow-sm min-h-[48px]"
                 />
                 <span className="absolute inset-y-0 right-4 flex items-center" onClick={() => setShowPassword(!showPassword)}>
                   <EyeIcon open={showPassword} />
@@ -306,7 +314,7 @@ export default function LoginPage() {
                   <div className="w-10 h-6 rounded-full bg-gray-300 peer-checked:bg-[#F5C800] transition-colors duration-200" />
                   <div className="absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 peer-checked:translate-x-4" />
                 </div>
-                <span className="text-sm text-gray-600 group-hover:text-gray-800 transition-colors">
+                <span className="text-sm text-gray-600 group-hover:text-gray-800 transition-colors leading-snug">
                   Recordar credenciales
                 </span>
               </label>
@@ -315,7 +323,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-4 rounded-xl bg-[#F5C800] hover:bg-[#e0b500] active:scale-[.98] text-black font-bold text-base tracking-wide shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-1 disabled:opacity-70 disabled:cursor-not-allowed"
+                className="w-full py-3.5 sm:py-4 rounded-xl bg-[#F5C800] hover:bg-[#e0b500] active:scale-[.98] text-black font-bold text-base tracking-wide shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-1 disabled:opacity-70 disabled:cursor-not-allowed min-h-[48px] touch-manipulation"
               >
                 {loading ? (
                   <><SpinnerIcon /> Ingresando...</>
@@ -328,7 +336,7 @@ export default function LoginPage() {
           </div>
 
           {/* RIGHT PANEL */}
-          <div className="flex-1 bg-white hidden lg:flex">
+          <div className="flex-1 bg-white hidden lg:flex min-h-0">
             <div
               className="flex-1 bg-cover bg-center"
               style={{ backgroundImage: "url('/assets/img/login/principal.jpg')" }}

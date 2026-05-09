@@ -285,9 +285,10 @@ export default function Sidebar({ mobileOpen = false, onClose = () => {} }) {
     }
   }, [pathname, rol]);
 
-useEffect(() => {
-  onClose();
-}, [pathname, onClose]);
+  // Cierra el drawer al cambiar de ruta (onClose debe ser estable, p. ej. useCallback en el padre).
+  useEffect(() => {
+    onClose();
+  }, [pathname, onClose]);
 
   // Bloquear scroll del body cuando el drawer está abierto en mobile
   useEffect(() => {
@@ -325,7 +326,7 @@ useEffect(() => {
 
       {/* ── MOBILE drawer overlay ── */}
       {mobileOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
+        <div className="lg:hidden fixed inset-0 z-[100] flex">
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
@@ -11,6 +11,7 @@ export default function LayoutDashboard({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const closeMobileMenu = useCallback(() => setMobileOpen(false), []);
 
   useEffect(() => {
     if (!pathname) return;
@@ -42,12 +43,15 @@ export default function LayoutDashboard({ children }) {
   return (
     <div className="flex flex-col h-screen bg-[#f6f8fb]">
       <AdvisorTaskUrgencyModal />
-      <Topbar onMenuToggle={() => setMobileOpen(true)} />
+      <Topbar
+        onMenuToggle={() => setMobileOpen(true)}
+        mobileDrawerOpen={mobileOpen}
+      />
 
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           mobileOpen={mobileOpen}
-          onClose={() => setMobileOpen(false)}
+          onClose={closeMobileMenu}
         />
         <main className="flex-1 p-6 overflow-auto">
           {children}
