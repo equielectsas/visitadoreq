@@ -157,12 +157,12 @@ export default function ChequeoVehiculoPage() {
       return;
     }
 
-    // Proxy same-origin en Next (next.config.mjs → CHEQUEO_API_REWRITE_TARGET, default :3001).
+    // Proxy en Route Handler (/api/chequeo-proxy) para no enviar Origin al API de plataforma (evita CORS en Heroku).
     const path =
       tipo === "moto"
         ? "/chequeoVehiculos/chequeoMoto"
         : "/chequeoVehiculos/chequeoCarro";
-    const url = `/api-chequeo${path}`;
+    const url = `/api/chequeo-proxy${path}`;
 
     const km = Number(String(kilometraje).replace(",", "."));
 
@@ -214,8 +214,7 @@ export default function ChequeoVehiculoPage() {
         err?.name === "TypeError"
       ) {
         setError(
-          "No se pudo conectar con el servidor de chequeo (proxy /api-chequeo). " +
-            "Inicia el API de plataforma (suele ser puerto 3001) o define CHEQUEO_API_REWRITE_TARGET en el entorno y reinicia npm run dev."
+          "No se pudo conectar con el servidor de chequeo. Comprueba CHEQUEO_API_REWRITE_TARGET en Vercel y que el API de plataforma esté en línea."
         );
       } else {
         setError(msg || "No se pudo enviar el formulario.");

@@ -101,8 +101,8 @@ export default function AdminChequeoVehiculoPage() {
 
       const paramsRep = new URLSearchParams({ fechaInicio: desde, fechaFin: hasta });
       const [carroRes, motoRes] = await Promise.all([
-        fetchJSON(`/api-chequeo/chequeoVehiculos/reporteCarro?${paramsRep.toString()}`),
-        fetchJSON(`/api-chequeo/chequeoVehiculos/reporteMoto?${paramsRep.toString()}`),
+        fetchJSON(`/api/chequeo-proxy/chequeoVehiculos/reporteCarro?${paramsRep.toString()}`),
+        fetchJSON(`/api/chequeo-proxy/chequeoVehiculos/reporteMoto?${paramsRep.toString()}`),
       ]);
       setCarroRegs(Array.isArray(carroRes?.data) ? carroRes.data : []);
       setMotoRegs(Array.isArray(motoRes?.data) ? motoRes.data : []);
@@ -189,7 +189,7 @@ export default function AdminChequeoVehiculoPage() {
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Administración</p>
           <h1 className="text-2xl font-black text-gray-800 mt-0.5">Informe chequeo vehículo</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Visitas vía <strong>/api</strong> (visitadorback). Reportes de chequeo vía <strong>/api-chequeo</strong> (proxy en{" "}
+            Visitas vía <strong>/api</strong> (visitadorback). Reportes de chequeo vía <strong>/api/chequeo-proxy</strong> (proxy en{" "}
             <code className="text-xs bg-gray-100 px-1 rounded">next.config.mjs</code>
             , por defecto puerto 3001). La fecha se calcula en <strong>America/Bogotá</strong>.
           </p>
