@@ -56,7 +56,17 @@ export function EstadoBadge({ estado }) {
   );
 }
 
-export default function VisualizarVisitaModal({ show, onClose, cita, asesorFallbackNombre, footerActions, expandDetails }) {
+export default function VisualizarVisitaModal({
+  show,
+  onClose,
+  cita,
+  asesorFallbackNombre,
+  footerActions,
+  expandDetails,
+  /** Si true, las tareas se muestran con checkbox y `onTareaToggle(idx)`. */
+  tareasEditable = false,
+  onTareaToggle,
+}) {
   if (!show || !cita) return null;
 
   const dv = cita?.datosVisita || {};
@@ -161,22 +171,68 @@ export default function VisualizarVisitaModal({ show, onClose, cita, asesorFallb
             )}
 
             <div className="mt-6">
-              <p className="text-xs font-bold text-[#98989A] uppercase tracking-widest mb-2">Tareas pendientes</p>
+              <p className="text-xs font-bold text-[#98989A] dark:text-slate-400 uppercase tracking-widest mb-2">
+                {tareasEditable ? "Tareas (marca las completadas)" : "Tareas pendientes"}
+              </p>
               {tareas.length > 0 ? (
                 <div className="space-y-2">
                   {tareas.map((t, idx) => (
-                    <div key={idx} className="flex items-start gap-2 px-4 py-3 rounded-xl border border-gray-100 dark:border-slate-600 bg-gray-50 dark:bg-[#0f1c2e]">
-                      <span className={`mt-0.5 text-xs font-black ${t?.done ? "text-emerald-600" : "text-gray-400"}`}>
-                        {t?.done ? "✓" : "•"}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-gray-700 dark:text-slate-200 break-words">{t?.texto || "—"}</p>
-                      </div>
+                    <div
+                      key={idx}
+                      className="flex items-start gap-3 px-4 py-3 rounded-xl border border-gray-100 dark:border-slate-600 bg-gray-50 dark:bg-[#0f1c2e]"
+                    >
+                      {tareasEditable ? (
+                        <label className="flex items-start gap-3 flex-1 min-w-0 cursor-pointer hover:opacity-90">
+                          <input
+                            type="checkbox"
+                            checked={!!t?.done}
+                            onChange={() => onTareaToggle?.(idx)}
+                            className="mt-1 h-4 w-4 shrink-0 rounded border-gray-300 dark:border-slate-500 text-[#1C355E] focus:ring-[#1C355E]"
+                          />
+                          <span
+                            className={`text-sm font-semibold break-words flex-1 ${
+                              t?.done ? "text-gray-500 dark:text-slate-400 line-through" : "text-gray-700 dark:text-slate-200"
+                            }`}
+                          >
+                            {t?.texto || "—"}
+                          </span>
+                        </label>
+                      ) : (
+                        <>
+                          <span
+                            className={`mt-0.5 text-xs font-black ${t?.done ? "text-emerald-600 dark:text-emerald-400" : "text-gray-400 dark:text-slate-500"}`}
+                          >
+                            {t?.done ? "✓" : "•"}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p
+                              className={`text-sm font-semibold break-words ${
+                                t?.done ? "text-gray-500 dark:text-slate-400 line-through" : "text-gray-700 dark:text-slate-200"
+                              }`}
+                            >
+                              {t?.texto || "—"}
+                            </p>
+                            {t?.marcadaPorAsesorAt && (
+                              <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold mt-1">
+                                Asesor marcó:{" "}
+                                {(() => {
+                                  try {
+                                    const d = new Date(t.marcadaPorAsesorAt);
+                                    return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" });
+                                  } catch {
+                                    return "—";
+                                  }
+                                })()}
+                              </p>
+                            )}
+                          </div>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-gray-400">—</p>
+                <p className="text-sm text-gray-400 dark:text-slate-500">—</p>
               )}
             </div>
           </>

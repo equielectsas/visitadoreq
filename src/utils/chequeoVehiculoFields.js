@@ -1,6 +1,6 @@
 /**
  * Campos alineados con backendPlataformaeq:
- * POST {CHEQUEO_API}/chequeoVehiculos/chequeoCarro | chequeoMoto
+ * POST {CHEQUEO_API}/chequeoVehiculos/chequeoCarro | chequeoMoto | chequeoTransportePublico
  * (schemas/chequeoVehiculo.schema.js)
  */
 

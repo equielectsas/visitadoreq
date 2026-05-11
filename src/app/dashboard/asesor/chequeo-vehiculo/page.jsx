@@ -32,6 +32,30 @@ function fieldCompleteClass(filled) {
     : "border-gray-200 bg-white text-gray-800";
 }
 
+function fechaIsoBogotaNow() {
+  const d = new Date();
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(d);
+  const get = (type) => parts.find((p) => p.type === type)?.value;
+  const y = get("year");
+  const m = get("month");
+  const day = get("day");
+  const hh = get("hour");
+  const mm = get("minute");
+  const ss = get("second");
+  if (!y || !m || !day || !hh || !mm || !ss) return d.toISOString();
+  // Colombia no tiene DST: offset fijo -05:00
+  return `${y}-${m}-${day}T${hh}:${mm}:${ss}-05:00`;
+}
+
 export default function ChequeoVehiculoPage() {
   const [user, setUser] = useState(null);
   const [tipo, setTipo] = useState(null); // 'carro' | 'moto' | 'publico'
@@ -177,13 +201,15 @@ export default function ChequeoVehiculoPage() {
     const path =
       tipo === "moto"
         ? "/chequeoVehiculos/chequeoMoto"
-        : "/chequeoVehiculos/chequeoCarro";
+        : tipo === "publico"
+          ? "/chequeoVehiculos/chequeoTransportePublico"
+          : "/chequeoVehiculos/chequeoCarro";
     const url = `/chequeo-proxy${path}`;
 
     const km = Number(String(kilometraje).replace(",", "."));
 
     const body = {
-      fecha: new Date().toISOString(),
+      fecha: fechaIsoBogotaNow(),
       nombre: user.nombre || "",
       rol: user.rol || "comercial",
       cedula: cedulaNum,
@@ -255,7 +281,7 @@ export default function ChequeoVehiculoPage() {
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Seguridad vial</p>
           <h1 className="text-2xl font-black text-gray-800 mt-0.5">Chequeo vehículo</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Obligatorio <strong>una vez al día</strong> por tipo de transporte (Carro o Motocicleta) si vas a{" "}
+            Obligatorio <strong>una vez al día</strong> por tipo de transporte (Carro, Motocicleta o Transporte público) si vas a{" "}
             <strong>cerrar visitas</strong> con ese medio. Cada día nuevo debes volver a enviarlo.{" "}
             <Link href="/dashboard/asesor" className="text-[#1C355E] font-semibold underline">
               Volver a visitas

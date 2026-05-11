@@ -62,6 +62,7 @@ export default function AdminChequeoVehiculoPage() {
   const [visitas, setVisitas] = useState([]);
   const [carroRegs, setCarroRegs] = useState([]);
   const [motoRegs, setMotoRegs] = useState([]);
+  const [publicoRegs, setPublicoRegs] = useState([]);
 
   useEffect(() => {
     const stored = localStorage.getItem("user");
@@ -106,6 +107,13 @@ export default function AdminChequeoVehiculoPage() {
       ]);
       setCarroRegs(Array.isArray(carroRes?.data) ? carroRes.data : []);
       setMotoRegs(Array.isArray(motoRes?.data) ? motoRes.data : []);
+      let publicoRes = {};
+      try {
+        publicoRes = await fetchJSON(`/chequeo-proxy/chequeoVehiculos/reporteTransportePublico?${paramsRep.toString()}`);
+      } catch {
+        publicoRes = { data: [] };
+      }
+      setPublicoRegs(Array.isArray(publicoRes?.data) ? publicoRes.data : []);
     } catch (e) {
       setError(e?.message || "No se pudo consultar.");
     } finally {
@@ -128,10 +136,11 @@ export default function AdminChequeoVehiculoPage() {
       if (!ymd) continue;
 
       const key = `${cedula}|${ymd}`;
-      if (!map.has(key)) map.set(key, { cedula, nombre, ymd, carro: false, moto: false });
+      if (!map.has(key)) map.set(key, { cedula, nombre, ymd, carro: false, publico: false, moto: false });
 
       const t = v?.datosVisita?.tipoVehiculo || "";
-      if (t === "Carro" || t === "Transporte Público") map.get(key).carro = true;
+      if (t === "Carro") map.get(key).carro = true;
+      if (t === "Transporte Público") map.get(key).publico = true;
       if (t === "Motocicleta") map.get(key).moto = true;
     }
     return [...map.values()].sort(
@@ -145,36 +154,51 @@ export default function AdminChequeoVehiculoPage() {
       const c = normCedula(cedula);
       if (!c || !ymd) return;
       const key = `${c}|${ymd}`;
-      if (!idx.has(key)) idx.set(key, { carro: false, moto: false });
+      if (!idx.has(key)) idx.set(key, { carro: false, publico: false, moto: false });
       idx.get(key)[tipo] = true;
     };
 
     for (const r of carroRegs) put(r?.cedula, fmtBogotaYmdFromDate(r?.fecha), "carro");
     for (const r of motoRegs) put(r?.cedula, fmtBogotaYmdFromDate(r?.fecha), "moto");
+    for (const r of publicoRegs) put(r?.cedula, fmtBogotaYmdFromDate(r?.fecha), "publico");
     return idx;
-  }, [carroRegs, motoRegs]);
+  }, [carroRegs, motoRegs, publicoRegs]);
 
   const resumen = useMemo(() => {
     return esperadoPorAsesor.map((e) => {
-      const st = enviadosIndex.get(`${normCedula(e.cedula)}|${e.ymd}`) || { carro: false, moto: false };
+      const st = enviadosIndex.get(`${normCedula(e.cedula)}|${e.ymd}`) || { carro: false, publico: false, moto: false };
       return {
         ...e,
         carroEnviado: !!st.carro,
+        publicoEnviado: !!st.publico,
         motoEnviado: !!st.moto,
         carroFalta: e.carro && !st.carro,
+        publicoFalta: e.publico && !st.publico,
         motoFalta: e.moto && !st.moto,
       };
     });
   }, [esperadoPorAsesor, enviadosIndex]);
 
   const descargarCSV = () => {
-    const header = ["Fecha", "Cédula", "Nombre", "Requiere carro", "Enviado carro", "Requiere moto", "Enviado moto"];
+    const header = [
+      "Fecha",
+      "Cédula",
+      "Nombre",
+      "Requiere carro",
+      "Enviado carro",
+      "Requiere transporte público",
+      "Enviado transporte público",
+      "Requiere moto",
+      "Enviado moto",
+    ];
     const rows = resumen.map((r) => [
       r.ymd,
       r.cedula,
       r.nombre,
       r.carro ? "SI" : "NO",
       r.carroEnviado ? "SI" : "NO",
+      r.publico ? "SI" : "NO",
+      r.publicoEnviado ? "SI" : "NO",
       r.moto ? "SI" : "NO",
       r.motoEnviado ? "SI" : "NO",
     ]);
@@ -244,6 +268,7 @@ export default function AdminChequeoVehiculoPage() {
           <div className="text-xs text-gray-500 flex flex-wrap gap-4">
             <span><strong>Visitas</strong>: {visitas.length}</span>
             <span><strong>Chequeos carro</strong>: {carroRegs.length}</span>
+            <span><strong>Chequeos transporte público</strong>: {publicoRegs.length}</span>
             <span><strong>Chequeos moto</strong>: {motoRegs.length}</span>
             <span><strong>Filas resumen</strong>: {resumen.length}</span>
           </div>
@@ -251,20 +276,21 @@ export default function AdminChequeoVehiculoPage() {
 
         <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
           <div className="overflow-auto">
-            <table className="min-w-[980px] w-full text-sm">
+            <table className="min-w-[1100px] w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr className="text-left text-xs font-black text-gray-600 uppercase tracking-wide">
                   <th className="px-4 py-3">Fecha</th>
                   <th className="px-4 py-3">Cédula</th>
                   <th className="px-4 py-3">Nombre</th>
                   <th className="px-4 py-3">Carro</th>
+                  <th className="px-4 py-3">T. público</th>
                   <th className="px-4 py-3">Moto</th>
                   <th className="px-4 py-3">Estado</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {resumen.map((r) => {
-                  const ok = !(r.carroFalta || r.motoFalta);
+                  const ok = !(r.carroFalta || r.publicoFalta || r.motoFalta);
                   return (
                     <tr key={`${r.cedula}|${r.ymd}`} className="hover:bg-gray-50/60">
                       <td className="px-4 py-3 font-semibold text-gray-700">{r.ymd}</td>
@@ -278,6 +304,19 @@ export default function AdminChequeoVehiculoPage() {
                             }`}
                           >
                             {r.carroEnviado ? "Enviado" : "Falta"}
+                          </span>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {r.publico ? (
+                          <span
+                            className={`inline-flex px-2 py-1 rounded-full text-xs font-bold ${
+                              r.publicoEnviado ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
+                            }`}
+                          >
+                            {r.publicoEnviado ? "Enviado" : "Falta"}
                           </span>
                         ) : (
                           <span className="text-gray-300">—</span>
@@ -311,7 +350,7 @@ export default function AdminChequeoVehiculoPage() {
 
                 {resumen.length === 0 && (
                   <tr>
-                    <td className="px-4 py-10 text-center text-gray-400" colSpan={6}>
+                    <td className="px-4 py-10 text-center text-gray-400" colSpan={7}>
                       No hay datos para el rango seleccionado.
                     </td>
                   </tr>

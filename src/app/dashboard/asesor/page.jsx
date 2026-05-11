@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import LayoutDashboard from "@/components/LayoutDashboard";
 import VisualizarVisitaModal, { EstadoBadge } from "@/components/VisualizarVisitaModal";
@@ -134,6 +134,18 @@ function normalizarNombreEmpresa(s) {
   return (s || "").trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+/** Solo dígitos, para comparar NIT entre sucursales/puntos del mismo cliente. */
+function normalizarNitCompare(s) {
+  return String(s ?? "").replace(/\D/g, "");
+}
+
+/** Clave localStorage del borrador de “Continuar visita” (una visita activa por id). */
+function getVisitaDraftStorageKey(user, visitaId) {
+  const id = visitaId != null && visitaId !== "" ? String(visitaId) : "";
+  if (!id) return "";
+  return `equielect_visita_draft_v1_${user?.cedula || "anon"}_${id}`;
+}
+
 /** Contacto guardado con empresaId / empresaNombre o solo empresa (legado). */
 function contactoPerteneceAEmpresa(c, empresaId, nombreEmpresa) {
   const ne = normalizarNombreEmpresa(nombreEmpresa);
@@ -205,6 +217,128 @@ function SelectField({ label, options, required, fieldValid, className = "", ...
   );
 }
 
+function normalizeMunicipioBusqueda(s) {
+  return String(s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+/** Un solo campo: escribes y aparecen municipios; eliges uno de la lista (combobox). */
+function MunicipioSearchField({ label, required, fieldValid, value, onValueChange, options }) {
+  const border =
+    fieldValid === true
+      ? "border-emerald-400 bg-emerald-50/70"
+      : fieldValid === false
+        ? "border-red-400 bg-red-50/50"
+        : "border-gray-200 bg-gray-50";
+  const [inputText, setInputText] = useState(value || "");
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    setInputText(value || "");
+  }, [value]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filtered = useMemo(() => {
+    const n = normalizeMunicipioBusqueda(inputText);
+    if (n.length < 1) return [];
+    return options.filter((o) => normalizeMunicipioBusqueda(o).includes(n)).slice(0, 100);
+  }, [inputText, options]);
+
+  const handleChange = (e) => {
+    const v = e.target.value;
+    setInputText(v);
+    setOpen(true);
+    if (!v.trim()) {
+      onValueChange("");
+      return;
+    }
+    if (value && v !== value) onValueChange("");
+  };
+
+  const pick = (m) => {
+    onValueChange(m);
+    setInputText(m);
+    setOpen(false);
+  };
+
+  const handleBlur = () => {
+    window.setTimeout(() => {
+      const t = inputText.trim();
+      if (!t) {
+        onValueChange("");
+        return;
+      }
+      const exact = options.find((o) => normalizeMunicipioBusqueda(o) === normalizeMunicipioBusqueda(t));
+      if (exact) onValueChange(exact);
+      else if (value) setInputText(value);
+      else {
+        setInputText("");
+        onValueChange("");
+      }
+    }, 120);
+  };
+
+  const nNorm = normalizeMunicipioBusqueda(inputText);
+
+  return (
+    <div className="flex flex-col gap-1" ref={ref}>
+      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+        {label}
+        {required && <span className="text-red-400 ml-1">*</span>}
+      </label>
+      <div className="relative">
+        <input
+          type="text"
+          autoComplete="off"
+          placeholder="Buscar municipio…"
+          value={inputText}
+          onChange={handleChange}
+          onFocus={() => setOpen(true)}
+          onBlur={handleBlur}
+          className={`w-full px-4 py-3 rounded-xl border text-sm font-medium text-gray-800 placeholder:text-gray-400
+            focus:outline-none focus:ring-2 focus:ring-[#1C355E]/20 focus:border-[#1C355E] transition-all ${border}`}
+        />
+        {open && (
+          <div className="absolute z-30 left-0 right-0 mt-1 rounded-xl border border-gray-200 bg-white shadow-lg max-h-56 overflow-y-auto">
+            {nNorm.length < 1 ? (
+              <p className="px-3 py-2.5 text-xs text-gray-500">Escribe letras del nombre para ver opciones.</p>
+            ) : filtered.length === 0 ? (
+              <p className="px-3 py-2.5 text-xs text-gray-500">No hay coincidencias. Sigue escribiendo o revisa el nombre.</p>
+            ) : (
+              <ul className="py-1">
+                {filtered.map((m) => (
+                  <li key={m}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        pick(m);
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-gray-800 hover:bg-[#1C355E]/5 font-medium"
+                    >
+                      {m}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ReadonlyField({ label, value }) {
   return (
     <div className="flex flex-col gap-1">
@@ -268,7 +402,7 @@ function CrearContactoModal({ show, onClose, onCreated, empresaVinculo, nombreIn
       setFormError("Primero elige la empresa de la visita.");
       return;
     }
-    if (!form.nombre.trim() || !form.cargo.trim() || !form.telefono.trim() || !form.correo.trim() || !form.profesion.trim()) {
+    if (!form.nombre.trim() || !form.cargo.trim() || !form.telefono.trim() || !form.correo.trim()) {
       setFormError("Completa todos los campos obligatorios.");
       return;
     }
@@ -279,13 +413,14 @@ function CrearContactoModal({ show, onClose, onCreated, empresaVinculo, nombreIn
     setFormError("");
     setSaving(true);
     const hoyStr = form.fechaCreacion || new Date().toISOString().split("T")[0];
+    const prof = (form.profesion || "").trim();
     const nuevo = {
       id: Date.now(),
       nombre: form.nombre.trim(),
       cargo: form.cargo.trim(),
       telefono: form.telefono.trim(),
       correo: form.correo.trim(),
-      profesion: form.profesion.trim(),
+      profesion: prof,
       empresa: empNombre,
       empresaNombre: empNombre,
       empresaId: empId || null,
@@ -310,8 +445,7 @@ function CrearContactoModal({ show, onClose, onCreated, empresaVinculo, nombreIn
             cargo: nuevo.cargo,
             telefono: nuevo.telefono,
             email: nuevo.correo,
-            notas: nuevo.profesion, // mientras backend no tenga profesion, lo mandamos en notas
-            profesion: nuevo.profesion, // si se agrega al backend, ya queda
+            ...(prof ? { notas: prof, profesion: prof } : { profesion: "" }),
           }),
         });
         const json = await res.json().catch(() => ({}));
@@ -341,8 +475,7 @@ function CrearContactoModal({ show, onClose, onCreated, empresaVinculo, nombreIn
     form.nombre.trim() &&
     form.cargo.trim() &&
     form.telefono.trim() &&
-    form.correo.trim() &&
-    form.profesion.trim();
+    form.correo.trim();
 
   if (!show) return null;
 
@@ -405,7 +538,7 @@ function CrearContactoModal({ show, onClose, onCreated, empresaVinculo, nombreIn
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                  Profesión <span className="text-red-400">*</span>
+                  Profesión <span className="text-gray-400 font-normal normal-case">(opcional)</span>
                 </label>
                 <input
                   type="text"
@@ -530,7 +663,7 @@ function EditarContactoModal({ show, onClose, contacto, empresaVinculo, onSaved 
 
   const handleSave = () => {
     if (!contacto?._id) return;
-    if (!form.nombre.trim() || !form.cargo.trim() || !form.telefono.trim() || !form.correo.trim() || !form.profesion.trim()) {
+    if (!form.nombre.trim() || !form.cargo.trim() || !form.telefono.trim() || !form.correo.trim()) {
       setFormError("Completa todos los campos obligatorios.");
       return;
     }
@@ -555,6 +688,7 @@ function EditarContactoModal({ show, onClose, contacto, empresaVinculo, onSaved 
     (async () => {
       try {
         const base = process.env.NEXT_PUBLIC_API_URL || "";
+        const prof = (form.profesion || "").trim();
         const res = await fetch(`${base.replace(/\/$/, "")}/clientes/${empId}/contactos/${contacto._id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", Authorization: token },
@@ -563,8 +697,7 @@ function EditarContactoModal({ show, onClose, contacto, empresaVinculo, onSaved 
             cargo: form.cargo.trim(),
             telefono: form.telefono.trim(),
             email: form.correo.trim(),
-            notas: form.profesion.trim(),
-            profesion: form.profesion.trim(),
+            ...(prof ? { notas: prof, profesion: prof } : { profesion: "" }),
           }),
         });
         const json = await res.json().catch(() => ({}));
@@ -573,7 +706,7 @@ function EditarContactoModal({ show, onClose, contacto, empresaVinculo, onSaved 
         // backend devuelve lista completa
         const list = Array.isArray(json?.contactos) ? json.contactos : [];
         const updated = list.find((c) => String(c._id) === String(contacto._id)) || null;
-        onSaved({ ...contacto, ...updated, profesion: form.profesion.trim(), correo: form.correo.trim() });
+        onSaved({ ...contacto, ...updated, profesion: (form.profesion || "").trim(), correo: form.correo.trim() });
         onClose();
       } catch (e) {
         setSaving(false);
@@ -587,8 +720,7 @@ function EditarContactoModal({ show, onClose, contacto, empresaVinculo, onSaved 
     form.nombre.trim() &&
     form.cargo.trim() &&
     form.telefono.trim() &&
-    form.correo.trim() &&
-    form.profesion.trim();
+    form.correo.trim();
 
   if (!show || !contacto) return null;
 
@@ -635,7 +767,7 @@ function EditarContactoModal({ show, onClose, contacto, empresaVinculo, onSaved 
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                Profesión <span className="text-red-400">*</span>
+                Profesión <span className="text-gray-400 font-normal normal-case">(opcional)</span>
               </label>
               <input
                 type="text"
@@ -709,6 +841,8 @@ function ContactoSearch({
   onOpenEditar,
   defaultQuery = "",
   selectedContactoId = "",
+  /** Si el contacto no está en la lista de esta sucursal, mostrar igual el chip (mismo NIT, otra sede). */
+  selectedContactoFallback = null,
   fieldValid,
 }) {
   const [query, setQuery] = useState("");
@@ -764,6 +898,16 @@ function ContactoSearch({
       if (selectedContactoId) {
         const match = list.find((c) => String(c._id) === String(selectedContactoId));
         if (match) setSelected(normalizeContacto(match));
+        else if (
+          selectedContactoFallback &&
+          String(selectedContactoFallback._id) === String(selectedContactoId)
+        ) {
+          setSelected(normalizeContacto(selectedContactoFallback));
+        } else {
+          setSelected(null);
+        }
+      } else {
+        setSelected(null);
       }
     } catch {
       setContactos([]);
@@ -776,7 +920,7 @@ function ContactoSearch({
     const onUpd = () => loadContactos("");
     window.addEventListener("contactos-updated", onUpd);
     return () => window.removeEventListener("contactos-updated", onUpd);
-  }, [empresaId, empresaNombre, selectedContactoId]);
+  }, [empresaId, empresaNombre, selectedContactoId, selectedContactoFallback]);
 
   useEffect(() => {
     if (prevEmpresaKey.current === null) {
@@ -861,7 +1005,7 @@ function ContactoSearch({
         </label>
         <p className="text-[10px] text-gray-400 -mt-0.5">
           {tieneEmpresaVinculo
-            ? "Se listan primero los contactos vinculados a esta empresa. Puedes crear otro aunque ya existan homónimos."
+            ? "Contactos de esta sede en el sistema. Si cambias a otra sucursal del mismo NIT, puedes conservar el encargado ya elegido."
             : "Elige la empresa arriba para ver sus contactos, o escribe para buscar en todos."}
         </p>
         <div className="relative">
@@ -1366,7 +1510,7 @@ function VisitasPasadasModal({ show, onClose, empresa, visitasFinalizadas }) {
 // DETALLES VISITA MODAL — con ContactoSearch + CrearContactoModal
 // ─────────────────────────────────────────────────────────────────────────────
 function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFinalizadas, clientes }) {
-  const draftKey = (id) => `equielect_visita_draft_v1_${user?.cedula || "anon"}_${id}`;
+  const visitaId = cita?._id != null ? String(cita._id) : cita?.id != null ? String(cita.id) : "";
 
   const emptyForm = {
     nit: "", nombreEmpresa: "", empresaId: "", nombreEncargado: "", cargoEncargado: "", encargadoContactoId: "",
@@ -1385,48 +1529,56 @@ function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFi
   const [errors, setErrors]           = useState([]);
 
   useEffect(() => {
-    if (show) {
-      const baseForm = {
-        ...emptyForm,
-        nombreEmpresa: cita?.datosVisita?.nombreEmpresa || "",
-        empresaId: cita?.clienteId ? String(cita.clienteId) : "",
-        nit: cita?.datosVisita?.nit || "",
-        direccionEmpresa: cita?.datosVisita?.direccionEmpresa || "",
-      };
+    if (!show) return;
+    const baseForm = {
+      ...emptyForm,
+      nombreEmpresa: cita?.datosVisita?.nombreEmpresa || "",
+      empresaId: cita?.clienteId ? String(cita.clienteId) : "",
+      nit: cita?.datosVisita?.nit || "",
+      direccionEmpresa: cita?.datosVisita?.direccionEmpresa || "",
+    };
 
-      // Cargar borrador local si existe (para visitas activas)
-      let merged = baseForm;
-      try {
-        const raw = localStorage.getItem(draftKey(cita?.id));
-        if (raw) {
-          const saved = JSON.parse(raw);
-          merged = { ...baseForm, ...(saved?.form || {}) };
-          setTareas(Array.isArray(saved?.tareas) ? saved.tareas : []);
-          setGeoCoords(saved?.geoCoords || null);
-        } else {
-          setTareas([]); setGeoCoords(null);
-        }
-      } catch {
-        setTareas([]); setGeoCoords(null);
+    let merged = baseForm;
+    try {
+      const key = getVisitaDraftStorageKey(user, visitaId);
+      const raw = key ? localStorage.getItem(key) : null;
+      if (raw) {
+        const saved = JSON.parse(raw);
+        merged = { ...baseForm, ...(saved?.form || {}) };
+        setTareas(Array.isArray(saved?.tareas) ? saved.tareas : []);
+        setGeoCoords(saved?.geoCoords || null);
+      } else {
+        setTareas([]);
+        setGeoCoords(null);
       }
-      setForm(merged);
-      setErrors([]);
+    } catch {
+      setTareas([]);
+      setGeoCoords(null);
     }
-  }, [show, cita]);
+    setForm(merged);
+    setErrors([]);
+  }, [show, visitaId, user?.cedula]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleEmpresaSelect = (empresa) => {
-    setForm((f) => ({
-      ...f,
-      nit: empresa.nit || "",
-      nombreEmpresa: empresa.nombre || "",
-      direccionEmpresa: empresa.direccion || empresa.ciudad || "",
-      empresaId: empresa._id != null ? String(empresa._id) : "",
-      nombreEncargado: "",
-      cargoEncargado: "",
-      encargadoContactoId: "",
-    }));
+    setForm((f) => {
+      const nitNuevo = normalizarNitCompare(empresa?.nit);
+      const nitAnterior = normalizarNitCompare(f.nit);
+      const mismoCliente = nitNuevo && nitAnterior && nitNuevo === nitAnterior;
+      const conservarEncargado =
+        mismoCliente && (Boolean(f.nombreEncargado?.trim()) || Boolean(f.encargadoContactoId));
+      return {
+        ...f,
+        nit: empresa.nit || "",
+        nombreEmpresa: empresa.nombre || "",
+        direccionEmpresa: empresa.direccion || empresa.ciudad || "",
+        empresaId: empresa._id != null ? String(empresa._id) : "",
+        ...(conservarEncargado
+          ? {}
+          : { nombreEncargado: "", cargoEncargado: "", encargadoContactoId: "" }),
+      };
+    });
   };
 
   const handleContactoSelect = useCallback(({ nombre, cargo, contactoId }) => {
@@ -1462,7 +1614,19 @@ function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFi
     ? { _id: form.empresaId || undefined, nombre: form.nombreEmpresa }
     : null;
 
-  const empresaContextKeyContacto = `${form.empresaId}|${form.nombreEmpresa}`;
+  /** Misma empresa (NIT) aunque cambie sucursal / `empresaId`: no resetea el encargado ni el buscador. */
+  const empresaContextKeyContacto =
+    normalizarNitCompare(form.nit) ||
+    `e:${form.empresaId}|${normalizarNombreEmpresa(form.nombreEmpresa)}`;
+
+  const contactoSearchFallback = useMemo(() => {
+    if (!form.encargadoContactoId || !form.nombreEncargado?.trim()) return null;
+    return {
+      _id: form.encargadoContactoId,
+      nombre: form.nombreEncargado.trim(),
+      cargo: form.cargoEncargado || "",
+    };
+  }, [form.encargadoContactoId, form.nombreEncargado, form.cargoEncargado]);
 
   const empresaFieldOk = Boolean(form.nombreEmpresa?.trim() && form.empresaId);
   const contactoFieldOk = Boolean(form.nombreEncargado?.trim() && form.cargoEncargado?.trim());
@@ -1491,23 +1655,43 @@ function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFi
     setShowConfirm(false);
     onFinalizar({ ...form, geoCoords, tareasPendientes: tareas });
     // limpiar borrador al finalizar
-    try { localStorage.removeItem(draftKey(cita?.id)); } catch {}
+    try {
+      const key = getVisitaDraftStorageKey(user, visitaId);
+      if (key) localStorage.removeItem(key);
+    } catch {}
+    onClose();
+  };
+
+  const flushDraftToStorage = useCallback(() => {
+    const key = getVisitaDraftStorageKey(user, visitaId);
+    if (!key) return;
+    try {
+      localStorage.setItem(key, JSON.stringify({ form, tareas, geoCoords, updatedAt: Date.now() }));
+    } catch {}
+  }, [user?.cedula, visitaId, form, tareas, geoCoords]);
+
+  const handleCloseDetalle = () => {
+    flushDraftToStorage();
     onClose();
   };
 
   // Autosave del progreso mientras el modal esté abierto
   useEffect(() => {
-    if (!show || !cita?.id) return;
+    if (!show || !visitaId) return;
     const t = setTimeout(() => {
-      try {
-        localStorage.setItem(
-          draftKey(cita.id),
-          JSON.stringify({ form, tareas, geoCoords, updatedAt: Date.now() })
-        );
-      } catch {}
+      flushDraftToStorage();
     }, 300);
     return () => clearTimeout(t);
-  }, [show, cita?.id, form, tareas, geoCoords]);
+  }, [show, visitaId, flushDraftToStorage]);
+
+  useEffect(() => {
+    if (!show || !visitaId) return;
+    const onVis = () => {
+      if (document.visibilityState === "hidden") flushDraftToStorage();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [show, visitaId, flushDraftToStorage]);
 
   const visitasPasadasCount = visitasFinalizadas.filter(
     v => (v.datosVisita?.nombreEmpresa || "")?.toLowerCase() === (form.nombreEmpresa || "")?.toLowerCase()
@@ -1518,7 +1702,12 @@ function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFi
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+        <button
+          type="button"
+          aria-label="Cerrar y guardar progreso"
+          className="absolute inset-0 bg-black/70 backdrop-blur-sm cursor-default border-0 p-0"
+          onClick={handleCloseDetalle}
+        />
         <div className="relative z-10 bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto">
 
           {/* Header sticky */}
@@ -1527,7 +1716,7 @@ function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFi
               <h2 className="text-lg font-bold text-[#1C355E]">Detalle de Visita</h2>
               <p className="text-xs text-gray-400 mt-0.5">{cita?.datosVisita?.nombreEmpresa || "—"} · {cita?.fecha} {cita?.hora}</p>
             </div>
-            <button onClick={onClose} className="w-9 h-9 rounded-full hover:bg-gray-100 flex items-center justify-center"><CloseIcon /></button>
+            <button type="button" onClick={handleCloseDetalle} className="w-9 h-9 rounded-full hover:bg-gray-100 flex items-center justify-center"><CloseIcon /></button>
           </div>
 
           <div className="px-7 py-6 space-y-7">
@@ -1568,6 +1757,7 @@ function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFi
                   empresaContextKey={empresaContextKeyContacto}
                   defaultQuery={form.nombreEncargado}
                   selectedContactoId={form.encargadoContactoId}
+                  selectedContactoFallback={contactoSearchFallback}
                   fieldValid={contactoFieldOk}
                   onOpenCrear={(nombreSugerido) => {
                     setNombreInicialCrearContacto(nombreSugerido || "");
@@ -1609,9 +1799,14 @@ function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFi
                           : "border-gray-200 bg-gray-50"
                       }`} />
                 </div>
-                <SelectField label="Municipio" required options={MUNICIPIOS_COLOMBIA}
+                <MunicipioSearchField
+                  label="Municipio"
+                  required
+                  options={MUNICIPIOS_COLOMBIA}
                   fieldValid={!!form.municipio?.trim()}
-                  value={form.municipio} onChange={e => set("municipio", e.target.value)} />
+                  value={form.municipio}
+                  onValueChange={(v) => set("municipio", v)}
+                />
 
                 {/* TRANSPORTE */}
                 <div className="flex flex-col gap-1">

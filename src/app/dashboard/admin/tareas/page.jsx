@@ -443,7 +443,9 @@ export default function AdminTareasPage() {
                     </div>
 
                     <div>
-                      <p className="text-[10px] font-bold text-[#98989A] uppercase tracking-wide mb-2">Tareas (checklist del asesor)</p>
+                      <p className="text-[10px] font-bold text-[#98989A] uppercase tracking-wide mb-2">
+                        Tareas (el asesor las marca en su panel; aquí ves el resultado)
+                      </p>
                       <ul className="space-y-2 max-h-40 overflow-y-auto pr-1">
                         {tareas.map((t, idx) => (
                           <li key={idx} className="flex items-start gap-2 rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2">
@@ -452,11 +454,28 @@ export default function AdminTareasPage() {
                               checked={!!t?.done}
                               disabled
                               className="mt-1 rounded border-gray-300 text-[#1C355E] focus:ring-[#1C355E]"
-                              title="Solo el asesor puede marcar esta tarea"
+                              title="Solo el asesor marca desde su cuenta. Si está marcado, el asesor chuleó la tarea."
                             />
-                            <span className={`text-sm flex-1 ${t?.done ? "text-gray-400 line-through" : "text-gray-800"}`}>
-                              {t?.texto || "—"}
-                            </span>
+                            <div className="flex-1 min-w-0">
+                              <span className={`text-sm block ${t?.done ? "text-gray-400 line-through" : "text-gray-800"}`}>
+                                {t?.texto || "—"}
+                              </span>
+                              {t?.done && t?.marcadaPorAsesorAt ? (
+                                <span className="text-[10px] font-semibold text-emerald-700 mt-0.5 block">
+                                  Asesor marcó:{" "}
+                                  {(() => {
+                                    try {
+                                      const d = new Date(t.marcadaPorAsesorAt);
+                                      return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" });
+                                    } catch {
+                                      return "—";
+                                    }
+                                  })()}
+                                </span>
+                              ) : t?.done ? (
+                                <span className="text-[10px] text-gray-400 mt-0.5 block">Completada (sin fecha registrada)</span>
+                              ) : null}
+                            </div>
                           </li>
                         ))}
                       </ul>
