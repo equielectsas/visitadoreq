@@ -1,15 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import LayoutDashboard from "@/components/LayoutDashboard";
 import {
   colombiaDateYmd,
-  getChequeoVehiculoState,
   markChequeoEnviado,
   getAuthTokenFromStorage,
   isChequeoEnviadoHoyParaTipo,
   transporteChequeoFromTipoForm,
+  fetchChequeoEstadoHoyDesdeApi,
+  normalizeCompletadosChequeoPlataforma,
+  replaceChequeoCompletadosHoyDesdePlataforma,
+  fechaIsoReferenciaChequeoBogota,
+  limpiarSesionChequeoObsoleta,
 } from "@/utils/chequeoVehiculoStorage";
 import {
   CARRO_SECCIONES,
@@ -32,30 +36,6 @@ function fieldCompleteClass(filled) {
     : "border-gray-200 bg-white text-gray-800";
 }
 
-function fechaIsoBogotaNow() {
-  const d = new Date();
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Bogota",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(d);
-  const get = (type) => parts.find((p) => p.type === type)?.value;
-  const y = get("year");
-  const m = get("month");
-  const day = get("day");
-  const hh = get("hour");
-  const mm = get("minute");
-  const ss = get("second");
-  if (!y || !m || !day || !hh || !mm || !ss) return d.toISOString();
-  // Colombia no tiene DST: offset fijo -05:00
-  return `${y}-${m}-${day}T${hh}:${mm}:${ss}-05:00`;
-}
-
 export default function ChequeoVehiculoPage() {
   const [user, setUser] = useState(null);
   const [tipo, setTipo] = useState(null); // 'carro' | 'moto' | 'publico'
@@ -68,7 +48,10 @@ export default function ChequeoVehiculoPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
-  const [tick, setTick] = useState(0);
+  /** Lo que consta hoy en la plataforma (BD vía API), no solo el navegador. */
+  const [servidorEstado, setServidorEstado] = useState({ loading: true, error: null, completados: {} });
+
+  const envioEnCursoRef = useRef(false);
 
   const secciones = useMemo(() => {
     if (tipo === "carro" || tipo === "publico") return CARRO_SECCIONES;
@@ -84,33 +67,53 @@ export default function ChequeoVehiculoPage() {
     return ks;
   }, [secciones]);
 
+  const cargarEstadoPlataforma = useCallback(async () => {
+    if (!user?.cedula) return;
+    limpiarSesionChequeoObsoleta(user);
+    const token = getAuthTokenFromStorage();
+    setServidorEstado((s) => ({ ...s, loading: true, error: null }));
+    const r = await fetchChequeoEstadoHoyDesdeApi({ token, cedula: user.cedula });
+    if (r.ok) {
+      const apiNorm = normalizeCompletadosChequeoPlataforma(r.completados);
+      replaceChequeoCompletadosHoyDesdePlataforma(user, apiNorm);
+      const display = normalizeCompletadosChequeoPlataforma(r.completados);
+      setServidorEstado({ loading: false, error: null, completados: display });
+    } else {
+      setServidorEstado({
+        loading: false,
+        error: r.error || "Sin respuesta",
+        completados: r.completados || {},
+      });
+    }
+  }, [user]);
+
+  const refrescarEstadoTrasEnvio = useCallback(async () => {
+    if (!user?.cedula) return;
+    const token = getAuthTokenFromStorage();
+    for (let i = 0; i < 4; i++) {
+      if (i) await new Promise((res) => setTimeout(res, 450 * i));
+      const r = await fetchChequeoEstadoHoyDesdeApi({ token, cedula: user.cedula });
+      if (!r.ok) continue;
+      const apiNorm = normalizeCompletadosChequeoPlataforma(r.completados);
+      replaceChequeoCompletadosHoyDesdePlataforma(user, apiNorm);
+      const display = normalizeCompletadosChequeoPlataforma(r.completados);
+      setServidorEstado({
+        loading: false,
+        error: null,
+        completados: display,
+      });
+    }
+  }, [user]);
+
   useEffect(() => {
     const stored = localStorage.getItem("user");
     if (stored) setUser(JSON.parse(stored));
   }, []);
 
   useEffect(() => {
-    const onUpd = () => setTick((t) => t + 1);
-    window.addEventListener("chequeo-vehiculo-updated", onUpd);
-    return () => window.removeEventListener("chequeo-vehiculo-updated", onUpd);
-  }, []);
-
-  const estadoHoy = useMemo(() => {
-    if (!user) return null;
-    return getChequeoVehiculoState(user);
-  }, [user, tick]);
-
-  const hoy = colombiaDateYmd();
-  const carroListo = estadoHoy?.fechaYmd === hoy && estadoHoy?.completados?.Carro;
-  const motoListo = estadoHoy?.fechaYmd === hoy && estadoHoy?.completados?.Motocicleta;
-  const publicoListo = estadoHoy?.fechaYmd === hoy && estadoHoy?.completados?.["Transporte Público"];
-
-  const transporteSeleccionado = transporteChequeoFromTipoForm(tipo);
-  const yaEnviadoEsteTipoHoy = Boolean(
-    transporteSeleccionado &&
-      estadoHoy?.fechaYmd === hoy &&
-      estadoHoy?.completados?.[transporteSeleccionado]
-  );
+    if (!user) return;
+    cargarEstadoPlataforma();
+  }, [user, cargarEstadoPlataforma]);
 
   useEffect(() => {
     if (!tipo) {
@@ -124,6 +127,18 @@ export default function ChequeoVehiculoPage() {
     setKilometraje("");
     setObservaciones("");
   }, [tipo]);
+
+  const hoy = colombiaDateYmd();
+  /** Chips: solo lo que devuelve la plataforma (reportes = BD expuesta por EQ). */
+  const cVista = servidorEstado.completados || normalizeCompletadosChequeoPlataforma({});
+  const puedeMostrarChips = !servidorEstado.error;
+  const carroListo = puedeMostrarChips && Boolean(cVista.Carro);
+  const motoListo = puedeMostrarChips && Boolean(cVista.Motocicleta);
+  const publicoListo = puedeMostrarChips && Boolean(cVista["Transporte Público"]);
+  const transporteSeleccionado = transporteChequeoFromTipoForm(tipo);
+  const yaEnviadoEsteTipoHoy = Boolean(
+    transporteSeleccionado && puedeMostrarChips && Boolean(cVista[transporteSeleccionado])
+  );
 
   const setCheck = (key, v) => setChecks((c) => ({ ...c, [key]: v }));
 
@@ -173,60 +188,72 @@ export default function ChequeoVehiculoPage() {
     e.preventDefault();
     setError("");
     if (!tipo) return;
-    if (isChequeoEnviadoHoyParaTipo(user, tipo)) {
-      setError(
-        "Ya enviaste este chequeo hoy. Solo se permite una vez al día por tipo de transporte. Mañana podrás enviarlo de nuevo."
-      );
-      return;
-    }
-    const msg = validar();
-    if (msg) {
-      setError(msg);
-      return;
-    }
-    const token = getAuthTokenFromStorage();
-    if (!token) {
-      setError("No hay sesión. Vuelve a iniciar sesión.");
-      return;
-    }
-    const tokenTrim = String(token || "").trim();
-    const bearer = tokenTrim.toLowerCase().startsWith("bearer ") ? tokenTrim : `Bearer ${tokenTrim}`;
-    const cedulaNum = Number(String(user?.cedula).replace(/\D/g, ""));
-    if (!cedulaNum || cedulaNum < 10000) {
-      setError("Tu cédula no cumple el formato requerido por el servidor (número ≥ 10000).");
-      return;
-    }
-
-    // Route Handler en /chequeo-proxy (no bajo /api: el rewrite /api/* va al visitador y rompería el proxy).
-    const path =
-      tipo === "moto"
-        ? "/chequeoVehiculos/chequeoMoto"
-        : tipo === "publico"
-          ? "/chequeoVehiculos/chequeoTransportePublico"
-          : "/chequeoVehiculos/chequeoCarro";
-    const url = `/chequeo-proxy${path}`;
-
-    const km = Number(String(kilometraje).replace(",", "."));
-
-    const body = {
-      fecha: fechaIsoBogotaNow(),
-      nombre: user.nombre || "",
-      rol: user.rol || "comercial",
-      cedula: cedulaNum,
-      placa: placa.trim().toUpperCase(),
-      kilometraje: km,
-      observaciones: observaciones.trim() || "",
-      ...checks,
-      cedulaFisica: checks.cedulaFisica?.trim() || cedulaFisica.trim(),
-    };
-
+    if (envioEnCursoRef.current) return;
+    envioEnCursoRef.current = true;
     setSending(true);
     try {
+      const token = getAuthTokenFromStorage();
+      if (!token) {
+        setError("No hay sesión. Vuelve a iniciar sesión.");
+        return;
+      }
+      const snap = await fetchChequeoEstadoHoyDesdeApi({ token, cedula: user.cedula });
+      if (!snap.ok) {
+        setError(
+          snap.error ||
+            "No se pudo consultar la plataforma para saber si ya enviaste el chequeo hoy. Reintenta en unos segundos."
+        );
+        return;
+      }
+      const apiNorm = normalizeCompletadosChequeoPlataforma(snap.completados);
+      replaceChequeoCompletadosHoyDesdePlataforma(user, apiNorm);
+      const bloqueo = normalizeCompletadosChequeoPlataforma(snap.completados);
+      setServidorEstado({ loading: false, error: null, completados: bloqueo });
+      if (isChequeoEnviadoHoyParaTipo(tipo, bloqueo)) {
+        setError(
+          "Ya consta el chequeo de este tipo para hoy en la plataforma. Solo podrás volver a enviarlo cuando sea un nuevo día en Colombia."
+        );
+        return;
+      }
+      const msg = validar();
+      if (msg) {
+        setError(msg);
+        return;
+      }
+      const tokenTrim = String(token || "").trim();
+      const bearer = tokenTrim.toLowerCase().startsWith("bearer ") ? tokenTrim : `Bearer ${tokenTrim}`;
+      const cedulaNum = Number(String(user?.cedula).replace(/\D/g, ""));
+      if (!cedulaNum || cedulaNum < 10000) {
+        setError("Tu cédula no cumple el formato requerido por el servidor (número ≥ 10000).");
+        return;
+      }
+
+      const path =
+        tipo === "moto"
+          ? "/chequeoVehiculos/chequeoMoto"
+          : tipo === "publico"
+            ? "/chequeoVehiculos/chequeoTransportePublico"
+            : "/chequeoVehiculos/chequeoCarro";
+      const url = `/chequeo-proxy${path}`;
+
+      const km = Number(String(kilometraje).replace(",", "."));
+
+      const body = {
+        fecha: fechaIsoReferenciaChequeoBogota(),
+        nombre: user.nombre || "",
+        rol: user.rol || "comercial",
+        cedula: cedulaNum,
+        placa: placa.trim().toUpperCase(),
+        kilometraje: km,
+        observaciones: observaciones.trim() || "",
+        ...checks,
+        cedulaFisica: checks.cedulaFisica?.trim() || cedulaFisica.trim(),
+      };
+
       const res = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          // Compatibilidad: algunos backends esperan el token "crudo" y otros "Bearer <token>"
           Authorization: tokenTrim,
           "X-Access-Token": tokenTrim,
           "X-Authorization": bearer,
@@ -234,8 +261,21 @@ export default function ChequeoVehiculoPage() {
         body: JSON.stringify(body),
       });
       const rawText = await res.text().catch(() => "");
-      const data = rawText ? JSON.parse(rawText) : {};
+      let data = {};
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        data = {};
+      }
       if (!res.ok) {
+        if (res.status === 409) {
+          setError(
+            data?.message ||
+              "Ya consta un chequeo de este tipo para hoy (misma cédula). Si lo enviaste desde otro aplicativo, no puedes duplicarlo."
+          );
+          await cargarEstadoPlataforma();
+          return;
+        }
         const boomMsg =
           data?.output?.payload?.message ||
           (Array.isArray(data?.errors) && data.errors.map((e) => e.message).filter(Boolean).join("; "));
@@ -243,9 +283,18 @@ export default function ChequeoVehiculoPage() {
           boomMsg || data.message || data.msg || (rawText && String(rawText).slice(0, 300)) || `Error ${res.status}`
         );
       }
-      if (tipo === "moto") markChequeoEnviado(user, "Motocicleta");
-      else if (tipo === "publico") markChequeoEnviado(user, "Transporte Público");
-      else markChequeoEnviado(user, "Carro");
+      const tipoTransporte =
+        tipo === "moto" ? "Motocicleta" : tipo === "publico" ? "Transporte Público" : "Carro";
+      markChequeoEnviado(user, tipoTransporte);
+      setServidorEstado((prev) => ({
+        loading: false,
+        error: null,
+        completados: {
+          ...normalizeCompletadosChequeoPlataforma(prev.completados),
+          [tipoTransporte]: true,
+        },
+      }));
+      await refrescarEstadoTrasEnvio();
       setDone(true);
       setTimeout(() => setDone(false), 2500);
     } catch (err) {
@@ -263,6 +312,7 @@ export default function ChequeoVehiculoPage() {
       }
     } finally {
       setSending(false);
+      envioEnCursoRef.current = false;
     }
   };
 
@@ -282,7 +332,7 @@ export default function ChequeoVehiculoPage() {
           <h1 className="text-2xl font-black text-gray-800 mt-0.5">Chequeo vehículo</h1>
           <p className="text-sm text-gray-500 mt-1">
             Obligatorio <strong>una vez al día</strong> por tipo de transporte (Carro, Motocicleta o Transporte público) si vas a{" "}
-            <strong>cerrar visitas</strong> con ese medio. Cada día nuevo debes volver a enviarlo.{" "}
+            <strong>cerrar visitas</strong> con ese medio. El estado sale solo de la plataforma (mismos reportes que la BD); al cambiar de día en Colombia podrás volver a enviar.{" "}
             <Link href="/dashboard/asesor" className="text-[#1C355E] font-semibold underline">
               Volver a visitas
             </Link>
@@ -290,7 +340,24 @@ export default function ChequeoVehiculoPage() {
         </div>
 
         <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm space-y-3">
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Estado hoy ({hoy})</p>
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+            Estado hoy ({hoy})
+            {servidorEstado.loading ? (
+              <span className="ml-2 font-normal text-gray-400 normal-case">· Consultando la plataforma…</span>
+            ) : null}
+          </p>
+          {servidorEstado.error ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+              <span className="font-semibold">No se pudo leer el estado en la plataforma:</span> {servidorEstado.error}{" "}
+              <button
+                type="button"
+                onClick={() => cargarEstadoPlataforma()}
+                className="font-bold text-[#1C355E] underline ml-1"
+              >
+                Reintentar
+              </button>
+            </div>
+          ) : null}
           <div className="flex flex-wrap gap-3">
             <span
               className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${
@@ -582,10 +649,10 @@ export default function ChequeoVehiculoPage() {
 
             <button
               type="submit"
-              disabled={sending}
+              disabled={sending || servidorEstado.loading || yaEnviadoEsteTipoHoy}
               className="w-full py-4 rounded-xl bg-[#1C355E] text-white font-bold text-sm hover:bg-[#16294d] disabled:opacity-50 touch-manipulation"
             >
-              {sending ? "Enviando…" : "Enviar chequeo al servidor"}
+              {sending ? "Enviando…" : servidorEstado.loading ? "Consultando plataforma…" : "Enviar chequeo al servidor"}
             </button>
           </form>
         )}

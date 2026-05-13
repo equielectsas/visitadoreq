@@ -6,7 +6,13 @@ import LayoutDashboard from "@/components/LayoutDashboard";
 import VisualizarVisitaModal, { EstadoBadge } from "@/components/VisualizarVisitaModal";
 import { fechaHoraCierreLocal, fechaHoraVisualDesdeVisita, normalizarVisitaAsesorNombre } from "@/utils/visitasHelpers";
 import { MUNICIPIOS_COLOMBIA } from "@/utils/municipiosColombia";
-import { chequeoCumpleParaCerrarVisita } from "@/utils/chequeoVehiculoStorage";
+import {
+  chequeoCumpleParaCerrarVisita,
+  fetchChequeoEstadoHoyDesdeApi,
+  normalizeCompletadosChequeoPlataforma,
+  replaceChequeoCompletadosHoyDesdePlataforma,
+  limpiarSesionChequeoObsoleta,
+} from "@/utils/chequeoVehiculoStorage";
 
 function notifyVisitasUpdated() {
   if (typeof window === "undefined") return;
@@ -128,7 +134,14 @@ const TIPO_VISITA = [
   "Visita técnica-comercial",
   "Levantamiento de Base instalada",
   "Especificación de producto",
+  "Reunión virtual",
 ];
+
+/** Visita virtual: no aplica transporte ni chequeo vehicular. */
+function esVisitaReunionVirtual(tipoVisita) {
+  const t = String(tipoVisita || "").trim().toLowerCase();
+  return t === "reunión virtual" || t === "reunion virtual";
+}
 
 function normalizarNombreEmpresa(s) {
   return (s || "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -1509,7 +1522,7 @@ function VisitasPasadasModal({ show, onClose, empresa, visitasFinalizadas }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // DETALLES VISITA MODAL — con ContactoSearch + CrearContactoModal
 // ─────────────────────────────────────────────────────────────────────────────
-function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFinalizadas, clientes }) {
+function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFinalizadas, clientes, chequeoServidor }) {
   const visitaId = cita?._id != null ? String(cita._id) : cita?.id != null ? String(cita.id) : "";
 
   const emptyForm = {
@@ -1632,12 +1645,15 @@ function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFi
   const contactoFieldOk = Boolean(form.nombreEncargado?.trim() && form.cargoEncargado?.trim());
 
   const validate = () => {
-    const required = ["nombreEmpresa", "nombreEncargado", "cargoEncargado", "tipoVisita", "municipio", "tipoVehiculo"];
-    const missing  = required.filter(k => !form[k]?.trim());
+    const reunionVirtual = esVisitaReunionVirtual(form.tipoVisita);
+    const required = ["nombreEmpresa", "nombreEncargado", "cargoEncargado", "tipoVisita", "municipio"];
+    if (!reunionVirtual) required.push("tipoVehiculo");
+    const missing = required.filter((k) => !form[k]?.trim());
     if (!geoCoords) missing.push("geolocalización");
     if (
-      (form.tipoVehiculo === "Carro" || form.tipoVehiculo === "Motocicleta") &&
-      !chequeoCumpleParaCerrarVisita(user, form.tipoVehiculo)
+      !reunionVirtual &&
+      (form.tipoVehiculo === "Carro" || form.tipoVehiculo === "Motocicleta" || form.tipoVehiculo === "Transporte Público") &&
+      !chequeoCumpleParaCerrarVisita(form.tipoVehiculo, chequeoServidor)
     ) {
       missing.push("chequeo vehículo del día (menú Chequeo vehículo)");
     }
@@ -1784,9 +1800,26 @@ function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFi
             <section>
               <SectionHeader number="3" title="Detalles de Visita" />
               <div className="space-y-3">
-                <SelectField label="Tipo de visita" required options={TIPO_VISITA}
+                <SelectField
+                  label="Tipo de visita"
+                  required
+                  options={TIPO_VISITA}
                   fieldValid={!!form.tipoVisita?.trim()}
-                  value={form.tipoVisita} onChange={e => set("tipoVisita", e.target.value)} />
+                  value={form.tipoVisita}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setForm((f) => ({
+                      ...f,
+                      tipoVisita: v,
+                      ...(esVisitaReunionVirtual(v) ? { tipoVehiculo: "" } : {}),
+                    }));
+                  }}
+                />
+                {esVisitaReunionVirtual(form.tipoVisita) ? (
+                  <p className="text-xs text-gray-500 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
+                    Esta modalidad <strong>no requiere tipo de transporte ni chequeo vehicular</strong>. El resto de datos sí aplica igual.
+                  </p>
+                ) : null}
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Observaciones</label>
                   <textarea rows={3} value={form.observaciones} onChange={e => set("observaciones", e.target.value)}
@@ -1808,7 +1841,8 @@ function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFi
                   onValueChange={(v) => set("municipio", v)}
                 />
 
-                {/* TRANSPORTE */}
+                {/* TRANSPORTE + chequeo (no aplica en reunión virtual) */}
+                {!esVisitaReunionVirtual(form.tipoVisita) ? (
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                     Tipo de transporte <span className="text-red-400">*</span>
@@ -1832,18 +1866,41 @@ function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFi
                       </button>
                     ))}
                   </div>
-                  {(form.tipoVehiculo === "Carro" || form.tipoVehiculo === "Motocicleta" || form.tipoVehiculo === "Transporte Público") && (
+                  {(form.tipoVehiculo === "Carro" || form.tipoVehiculo === "Motocicleta" || form.tipoVehiculo === "Transporte Público") && (() => {
+                    const loadingCh = chequeoServidor?.loading;
+                    const okChequeo =
+                      !loadingCh && chequeoCumpleParaCerrarVisita(form.tipoVehiculo, chequeoServidor);
+                    return (
                     <div
                       className={`mt-3 rounded-xl border px-4 py-3 text-xs ${
-                        chequeoCumpleParaCerrarVisita(user, form.tipoVehiculo)
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                          : "border-red-300 bg-red-50 text-red-950"
+                        loadingCh
+                          ? "border-amber-200 bg-amber-50 text-amber-950"
+                          : okChequeo
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                            : chequeoServidor?.error
+                              ? "border-amber-200 bg-amber-50 text-amber-950"
+                              : "border-red-300 bg-red-50 text-red-950"
                       }`}
                     >
                       <p className="font-bold text-sm mb-1">Chequeo vehicular del día</p>
-                      {chequeoCumpleParaCerrarVisita(user, form.tipoVehiculo) ? (
+                      {loadingCh ? (
+                        <p>Consultando en la plataforma si ya consta tu chequeo de hoy…</p>
+                      ) : okChequeo ? (
                         <p>
-                          Listo: ya enviaste el chequeo de <strong>{form.tipoVehiculo}</strong> hoy. Puedes finalizar esta visita.
+                          Listo: ya puedes cerrar con <strong>{form.tipoVehiculo}</strong> (consta el chequeo de hoy en la plataforma).
+                          {chequeoServidor?.error ? (
+                            <span className="block mt-2 text-[11px] font-medium text-emerald-800/90">
+                              Nota: la verificación en vivo falló ({chequeoServidor.error}); si algo no cuadra, abre Chequeo vehículo y reintenta.
+                            </span>
+                          ) : null}
+                        </p>
+                      ) : chequeoServidor?.error ? (
+                        <p className="mb-2">
+                          No se pudo verificar con la base de la plataforma: {chequeoServidor.error}. Reintenta en unos segundos o abre{" "}
+                          <Link href="/dashboard/asesor/chequeo-vehiculo" className="font-bold text-[#1C355E] underline">
+                            Chequeo vehículo
+                          </Link>
+                          .
                         </p>
                       ) : (
                         <>
@@ -1860,8 +1917,10 @@ function DetallesVisitaModal({ show, onClose, cita, user, onFinalizar, visitasFi
                         </>
                       )}
                     </div>
-                  )}
+                    );
+                  })()}
                 </div>
+                ) : null}
               </div>
             </section>
 
@@ -2213,6 +2272,8 @@ export default function AsesorCitasPage() {
   const [clientes, setClientes] = useState([]);
   const [filtro, setFiltro]     = useState("pendiente");
   const [loadingCitas, setLoadingCitas] = useState(true);
+  /** Estado del chequeo hoy según la plataforma (consulta a BD vía API). */
+  const [chequeoServidor, setChequeoServidor] = useState({ loading: true, error: null, completados: {} });
 
   const [showCrear, setShowCrear]             = useState(false);
   const [showIniciar, setShowIniciar]         = useState(false);
@@ -2277,6 +2338,38 @@ export default function AsesorCitasPage() {
     if (!user) return;
     fetchCitas();
   }, [user]);
+
+  const loadChequeoServidor = useCallback(async () => {
+    if (!user?.cedula) return;
+    limpiarSesionChequeoObsoleta(user);
+    const token = getToken();
+    setChequeoServidor((s) => ({ ...s, loading: true, error: null }));
+    const r = await fetchChequeoEstadoHoyDesdeApi({ token, cedula: user.cedula });
+    if (r.ok) {
+      const completados = normalizeCompletadosChequeoPlataforma(r.completados ?? {});
+      replaceChequeoCompletadosHoyDesdePlataforma(user, completados);
+      setChequeoServidor({ loading: false, error: null, completados });
+    } else {
+      setChequeoServidor({
+        loading: false,
+        error: r.error || "Sin respuesta",
+        completados: normalizeCompletadosChequeoPlataforma(r.completados ?? {}),
+      });
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    loadChequeoServidor();
+  }, [user, loadChequeoServidor]);
+
+  useEffect(() => {
+    const onChequeo = () => {
+      loadChequeoServidor();
+    };
+    window.addEventListener("chequeo-vehiculo-updated", onChequeo);
+    return () => window.removeEventListener("chequeo-vehiculo-updated", onChequeo);
+  }, [loadChequeoServidor]);
 
   const handleCrearCita = async (payload) => {
     const token = getToken();
@@ -2549,6 +2642,7 @@ export default function AsesorCitasPage() {
         onFinalizar={handleFinalizarVisita}
         visitasFinalizadas={visitasFinalizadas}
         clientes={clientes}
+        chequeoServidor={chequeoServidor}
       />
       <ReprogramarModal show={showReprogramar} onClose={() => setShowReprogramar(false)} cita={citaSeleccionada} onSave={handleReprogramar} />
       <EditarVisitaModal

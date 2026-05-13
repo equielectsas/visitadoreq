@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import LayoutDashboard from "@/components/LayoutDashboard";
+import { fechaRegistroChequeoYmd, fechaChequeoDdMmYyyyColombia, ymdVisitaDdMmYyyy } from "@/utils/chequeoVehiculoStorage";
+import { extraerFilasReporteChequeo, cedulaDesdeRegistroChequeo } from "@/lib/chequeoEstadoFromReports";
 
 function getToken() {
   try {
@@ -19,13 +21,6 @@ function bogotaYmd(d = new Date()) {
     month: "2-digit",
     day: "2-digit",
   }).format(d);
-}
-
-function fmtBogotaYmdFromDate(value) {
-  if (!value) return "";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "";
-  return bogotaYmd(d);
 }
 
 function normCedula(c) {
@@ -105,15 +100,15 @@ export default function AdminChequeoVehiculoPage() {
         fetchJSON(`/chequeo-proxy/chequeoVehiculos/reporteCarro?${paramsRep.toString()}`),
         fetchJSON(`/chequeo-proxy/chequeoVehiculos/reporteMoto?${paramsRep.toString()}`),
       ]);
-      setCarroRegs(Array.isArray(carroRes?.data) ? carroRes.data : []);
-      setMotoRegs(Array.isArray(motoRes?.data) ? motoRes.data : []);
+      setCarroRegs(extraerFilasReporteChequeo(carroRes));
+      setMotoRegs(extraerFilasReporteChequeo(motoRes));
       let publicoRes = {};
       try {
         publicoRes = await fetchJSON(`/chequeo-proxy/chequeoVehiculos/reporteTransportePublico?${paramsRep.toString()}`);
       } catch {
-        publicoRes = { data: [] };
+        publicoRes = {};
       }
-      setPublicoRegs(Array.isArray(publicoRes?.data) ? publicoRes.data : []);
+      setPublicoRegs(extraerFilasReporteChequeo(publicoRes));
     } catch (e) {
       setError(e?.message || "No se pudo consultar.");
     } finally {
@@ -132,10 +127,10 @@ export default function AdminChequeoVehiculoPage() {
       const cedula = v?.asesor?.cedula;
       if (!cedula) continue;
       const nombre = v?.asesor?.nombre || "";
-      const ymd = v?.fecha || fmtBogotaYmdFromDate(v?.scheduledAt) || "";
+      const ymd = v?.fecha || fechaRegistroChequeoYmd(v?.scheduledAt) || "";
       if (!ymd) continue;
 
-      const key = `${cedula}|${ymd}`;
+      const key = `${normCedula(cedula)}|${ymd}`;
       if (!map.has(key)) map.set(key, { cedula, nombre, ymd, carro: false, publico: false, moto: false });
 
       const t = v?.datosVisita?.tipoVehiculo || "";
@@ -158,30 +153,39 @@ export default function AdminChequeoVehiculoPage() {
       idx.get(key)[tipo] = true;
     };
 
-    for (const r of carroRegs) put(r?.cedula, fmtBogotaYmdFromDate(r?.fecha), "carro");
-    for (const r of motoRegs) put(r?.cedula, fmtBogotaYmdFromDate(r?.fecha), "moto");
-    for (const r of publicoRegs) put(r?.cedula, fmtBogotaYmdFromDate(r?.fecha), "publico");
+    for (const r of carroRegs) put(cedulaDesdeRegistroChequeo(r), fechaRegistroChequeoYmd(r?.fecha), "carro");
+    for (const r of motoRegs) put(cedulaDesdeRegistroChequeo(r), fechaRegistroChequeoYmd(r?.fecha), "moto");
+    for (const r of publicoRegs) put(cedulaDesdeRegistroChequeo(r), fechaRegistroChequeoYmd(r?.fecha), "publico");
     return idx;
   }, [carroRegs, motoRegs, publicoRegs]);
+
+  const hayRegistrosChequeoEq =
+    carroRegs.length > 0 || motoRegs.length > 0 || publicoRegs.length > 0;
 
   const resumen = useMemo(() => {
     return esperadoPorAsesor.map((e) => {
       const st = enviadosIndex.get(`${normCedula(e.cedula)}|${e.ymd}`) || { carro: false, publico: false, moto: false };
+      const carroEnviado = !!st.carro;
+      const publicoEnviado = !!st.publico;
+      const motoEnviado = !!st.moto;
+      const carroFalta = hayRegistrosChequeoEq && e.carro && !carroEnviado;
+      const publicoFalta = hayRegistrosChequeoEq && e.publico && !publicoEnviado;
+      const motoFalta = hayRegistrosChequeoEq && e.moto && !motoEnviado;
       return {
         ...e,
-        carroEnviado: !!st.carro,
-        publicoEnviado: !!st.publico,
-        motoEnviado: !!st.moto,
-        carroFalta: e.carro && !st.carro,
-        publicoFalta: e.publico && !st.publico,
-        motoFalta: e.moto && !st.moto,
+        carroEnviado,
+        publicoEnviado,
+        motoEnviado,
+        carroFalta,
+        publicoFalta,
+        motoFalta,
       };
     });
-  }, [esperadoPorAsesor, enviadosIndex]);
+  }, [esperadoPorAsesor, enviadosIndex, hayRegistrosChequeoEq]);
 
   const descargarCSV = () => {
     const header = [
-      "Fecha",
+      "Fecha (dd/mm/aaaa Colombia)",
       "Cédula",
       "Nombre",
       "Requiere carro",
@@ -192,7 +196,7 @@ export default function AdminChequeoVehiculoPage() {
       "Enviado moto",
     ];
     const rows = resumen.map((r) => [
-      r.ymd,
+      ymdVisitaDdMmYyyy(r.ymd),
       r.cedula,
       r.nombre,
       r.carro ? "SI" : "NO",
@@ -204,6 +208,44 @@ export default function AdminChequeoVehiculoPage() {
     ]);
     const csv = "\uFEFF" + [header, ...rows].map((row) => row.map(csvEscape).join(",")).join("\n");
     downloadText(`resumen_chequeo_${desde}_a_${hasta}.csv`, csv);
+  };
+
+  const descargarCSVDetalleChequeos = () => {
+    const header = [
+      "Tipo",
+      "Cédula",
+      "Nombre",
+      "Placa",
+      "Fecha_calendario_Colombia_ddmmyyyy",
+      "Fecha_ymd_colombia",
+      "Fecha_raw_bd",
+    ];
+    const pushTipo = (rows, list, tipoLabel) => {
+      for (const r of list) {
+        const ymd = fechaRegistroChequeoYmd(r?.fecha);
+        const raw =
+          r?.fecha != null
+            ? typeof r.fecha === "object"
+              ? JSON.stringify(r.fecha)
+              : String(r.fecha)
+            : "";
+        rows.push([
+          tipoLabel,
+          cedulaDesdeRegistroChequeo(r) || String(r?.cedula ?? ""),
+          r?.nombre ?? "",
+          r?.placa ?? "",
+          fechaChequeoDdMmYyyyColombia(r?.fecha),
+          ymd,
+          raw,
+        ]);
+      }
+    };
+    const rows = [header];
+    pushTipo(rows, carroRegs, "Carro");
+    pushTipo(rows, motoRegs, "Motocicleta");
+    pushTipo(rows, publicoRegs, "Transporte público");
+    const csv = "\uFEFF" + rows.map((row) => row.map(csvEscape).join(",")).join("\n");
+    downloadText(`detalle_chequeos_eq_${desde}_a_${hasta}.csv`, csv);
   };
 
   return (
@@ -255,13 +297,33 @@ export default function AdminChequeoVehiculoPage() {
               disabled={loading || resumen.length === 0}
               className="px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-700 disabled:opacity-50"
             >
-              Descargar CSV
+              Descargar CSV resumen
+            </button>
+
+            <button
+              type="button"
+              onClick={descargarCSVDetalleChequeos}
+              disabled={
+                loading ||
+                (carroRegs.length === 0 && motoRegs.length === 0 && publicoRegs.length === 0)
+              }
+              className="px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-700 disabled:opacity-50"
+            >
+              Descargar CSV chequeos (EQ)
             </button>
           </div>
 
           {error && (
             <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 font-medium">
               {error}
+            </div>
+          )}
+
+          {!loading && !error && visitas.length > 0 && !hayRegistrosChequeoEq && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700">
+              <strong>No hay filas de chequeo devueltas por la plataforma EQ</strong> en este rango: no se marca
+              &quot;Falta&quot; frente a la BD (no hay datos que contrastar). Revisa fechas o conexión con el API de
+              chequeo.
             </div>
           )}
 
@@ -279,7 +341,7 @@ export default function AdminChequeoVehiculoPage() {
             <table className="min-w-[1100px] w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr className="text-left text-xs font-black text-gray-600 uppercase tracking-wide">
-                  <th className="px-4 py-3">Fecha</th>
+                  <th className="px-4 py-3">Fecha (Colombia)</th>
                   <th className="px-4 py-3">Cédula</th>
                   <th className="px-4 py-3">Nombre</th>
                   <th className="px-4 py-3">Carro</th>
@@ -290,58 +352,53 @@ export default function AdminChequeoVehiculoPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {resumen.map((r) => {
-                  const ok = !(r.carroFalta || r.publicoFalta || r.motoFalta);
+                  const sinDatosEq = !hayRegistrosChequeoEq;
+                  const requiereAlguno = r.carro || r.publico || r.moto;
+                  const ok = hayRegistrosChequeoEq && !(r.carroFalta || r.publicoFalta || r.motoFalta);
+                  const badge = (requiere, enviado) => {
+                    if (!requiere) return <span className="text-gray-300">—</span>;
+                    if (sinDatosEq) {
+                      return (
+                        <span className="inline-flex px-2 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600">
+                          Sin datos EQ
+                        </span>
+                      );
+                    }
+                    if (enviado) {
+                      return (
+                        <span className="inline-flex px-2 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                          Enviado
+                        </span>
+                      );
+                    }
+                    return (
+                      <span className="inline-flex px-2 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800">
+                        Falta
+                      </span>
+                    );
+                  };
+                  let estadoLabel = "Incompleto";
+                  let estadoClass = "bg-amber-100 text-amber-900";
+                  if (!hayRegistrosChequeoEq && requiereAlguno) {
+                    estadoLabel = "Sin datos EQ";
+                    estadoClass = "bg-slate-100 text-slate-700";
+                  } else if (ok) {
+                    estadoLabel = "OK";
+                    estadoClass = "bg-emerald-100 text-emerald-800";
+                  }
                   return (
                     <tr key={`${r.cedula}|${r.ymd}`} className="hover:bg-gray-50/60">
-                      <td className="px-4 py-3 font-semibold text-gray-700">{r.ymd}</td>
+                      <td className="px-4 py-3 font-semibold text-gray-700" title={String(r.ymd)}>
+                        {ymdVisitaDdMmYyyy(r.ymd)}
+                      </td>
                       <td className="px-4 py-3 text-gray-700">{r.cedula}</td>
                       <td className="px-4 py-3 text-gray-800 font-semibold">{r.nombre || "—"}</td>
+                      <td className="px-4 py-3">{badge(r.carro, r.carroEnviado)}</td>
+                      <td className="px-4 py-3">{badge(r.publico, r.publicoEnviado)}</td>
+                      <td className="px-4 py-3">{badge(r.moto, r.motoEnviado)}</td>
                       <td className="px-4 py-3">
-                        {r.carro ? (
-                          <span
-                            className={`inline-flex px-2 py-1 rounded-full text-xs font-bold ${
-                              r.carroEnviado ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
-                            }`}
-                          >
-                            {r.carroEnviado ? "Enviado" : "Falta"}
-                          </span>
-                        ) : (
-                          <span className="text-gray-300">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {r.publico ? (
-                          <span
-                            className={`inline-flex px-2 py-1 rounded-full text-xs font-bold ${
-                              r.publicoEnviado ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
-                            }`}
-                          >
-                            {r.publicoEnviado ? "Enviado" : "Falta"}
-                          </span>
-                        ) : (
-                          <span className="text-gray-300">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {r.moto ? (
-                          <span
-                            className={`inline-flex px-2 py-1 rounded-full text-xs font-bold ${
-                              r.motoEnviado ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
-                            }`}
-                          >
-                            {r.motoEnviado ? "Enviado" : "Falta"}
-                          </span>
-                        ) : (
-                          <span className="text-gray-300">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex px-2.5 py-1 rounded-full text-xs font-black ${
-                            ok ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"
-                          }`}
-                        >
-                          {ok ? "OK" : "Incompleto"}
+                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-black ${estadoClass}`}>
+                          {estadoLabel}
                         </span>
                       </td>
                     </tr>
