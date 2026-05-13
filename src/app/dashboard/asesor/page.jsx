@@ -125,6 +125,11 @@ const PencilIcon = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
   </svg>
 );
+const TrashIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m2 0H7m3-3h4a1 1 0 011 1v2H9V5a1 1 0 011-1z" />
+  </svg>
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -2161,7 +2166,7 @@ function CrearCitaModal({ show, onClose, user, onCreate, clientes }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// EDITAR VISITA (solo si aún no ha iniciado: pendiente / reprogramada)
+// EDITAR VISITA (mientras no esté realizada)
 // ─────────────────────────────────────────────────────────────────────────────
 function EditarVisitaModal({ show, onClose, cita, clientes, onSave }) {
   const [fecha, setFecha] = useState("");
@@ -2173,9 +2178,28 @@ function EditarVisitaModal({ show, onClose, cita, clientes, onSave }) {
     if (show && cita) {
       setFecha(cita.fecha || "");
       setHora(cita.hora || "");
-      if (cita.empresa) setEmpresaSel(cita.empresa);
-      else if (cita.cliente) setEmpresaSel({ nombre: cita.cliente, nit: "", direccion: "", ciudad: "" });
-      else setEmpresaSel(null);
+      const clienteId = cita.clienteId?._id || cita.clienteId || "";
+      const nombre = cita.datosVisita?.nombreEmpresa || cita.empresa?.nombre || cita.cliente || "";
+      if (cita.empresa) {
+        setEmpresaSel({
+          ...cita.empresa,
+          _id: cita.empresa._id || clienteId,
+          nombre: cita.empresa.nombre || nombre,
+          nit: cita.empresa.nit || cita.datosVisita?.nit || "",
+          direccion: cita.empresa.direccion || cita.datosVisita?.direccionEmpresa || "",
+          ciudad: cita.empresa.ciudad || cita.datosVisita?.municipio || "",
+        });
+      } else if (nombre) {
+        setEmpresaSel({
+          _id: clienteId,
+          nombre,
+          nit: cita.datosVisita?.nit || "",
+          direccion: cita.datosVisita?.direccionEmpresa || "",
+          ciudad: cita.datosVisita?.municipio || "",
+        });
+      } else {
+        setEmpresaSel(null);
+      }
       setFormError("");
     }
   }, [show, cita]);
@@ -2217,7 +2241,7 @@ function EditarVisitaModal({ show, onClose, cita, clientes, onSave }) {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h3 className="text-xl font-bold text-[#1C355E]">Editar visita</h3>
-            <p className="text-xs text-gray-400 mt-0.5">Solo antes de iniciar la visita</p>
+            <p className="text-xs text-gray-400 mt-0.5">Disponible mientras la visita no esté realizada</p>
           </div>
           <button type="button" onClick={onClose} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"><CloseIcon /></button>
         </div>
@@ -2439,17 +2463,61 @@ export default function AsesorCitasPage() {
       setCitaSeleccionada(null);
     })();
   };
+  const handleEliminarVisita = (cita) => {
+    if (!cita?._id) return;
+    if (cita.estado === "realizada") {
+      alert("Las visitas realizadas solo las puede eliminar un administrador.");
+      return;
+    }
+    const ok = window.confirm(`¿Eliminar la visita de ${cita.datosVisita?.nombreEmpresa || "esta empresa"}?`);
+    if (!ok) return;
+    (async () => {
+      const token = getToken();
+      const res = await fetch(`/api/visitas/${cita._id}`, {
+        method: "DELETE",
+        headers: { Authorization: token },
+      }).catch(() => null);
+      if (!res?.ok) {
+        const data = await res?.json?.().catch(() => ({}));
+        alert(data?.message || "No se pudo eliminar la visita.");
+        return;
+      }
+      await fetchCitas();
+      if (citaSeleccionada?._id === cita._id) setCitaSeleccionada(null);
+    })();
+  };
   const handleGuardarEdicion = (payload) => {
     (async () => {
       const token = getToken();
-      // editar solo fecha/hora/cliente antes de iniciar -> backend no trae endpoint dedicado,
-      // reusamos reprogramar si cambia fecha/hora, y si cambia empresa se recrea (por ahora).
-      if (payload?.fecha || payload?.hora) {
-        await fetch(`/api/visitas/${citaSeleccionada._id}/reprogramar`, {
+      const empresa = payload?.empresa || {};
+      const body = {
+        fecha: payload.fecha,
+        hora: payload.hora,
+        clienteId: empresa._id || null,
+        datosVisita: {
+          nombreEmpresa: empresa.nombre,
+          nit: empresa.nit,
+          direccionEmpresa: empresa.direccion,
+          municipio: empresa.ciudad,
+        },
+        motivo: "Edición",
+      };
+      let res = await fetch(`/api/visitas/${citaSeleccionada._id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: token },
+        body: JSON.stringify(body),
+      }).catch(() => null);
+      if (res?.status === 404) {
+        res = await fetch(`/api/visitas/${citaSeleccionada._id}/reprogramar`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", Authorization: token },
-          body: JSON.stringify({ fecha: payload.fecha, hora: payload.hora, motivo: "Edición" }),
-        }).catch(() => {});
+          body: JSON.stringify(body),
+        }).catch(() => null);
+      }
+      if (!res?.ok) {
+        const data = await res?.json?.().catch(() => ({}));
+        alert(data?.message || "No se pudo guardar la visita.");
+        return;
       }
       await fetchCitas();
       setShowEditar(false);
@@ -2593,7 +2661,7 @@ export default function AsesorCitasPage() {
                 >
                   <EyeIcon /> Ver
                 </button>
-                {(cita.estado === "pendiente" || cita.estado === "reprogramada") && (
+                {cita.estado !== "realizada" && (
                   <button
                     type="button"
                     onClick={() => { setCitaSeleccionada(cita); setShowEditar(true); }}
@@ -2627,6 +2695,16 @@ export default function AsesorCitasPage() {
                     className="inline-flex flex-[1_1_calc(50%-0.25rem)] md:flex-initial items-center justify-center gap-1.5 px-2 sm:px-3.5 py-2.5 rounded-xl bg-emerald-500 text-white text-[11px] sm:text-xs font-bold hover:bg-emerald-600 active:scale-[.97] transition-all touch-manipulation min-h-[44px] md:min-h-0"
                   >
                     Continuar
+                  </button>
+                )}
+                {cita.estado !== "realizada" && (
+                  <button
+                    type="button"
+                    onClick={() => handleEliminarVisita(cita)}
+                    className="inline-flex flex-[1_1_calc(50%-0.25rem)] md:flex-initial items-center justify-center gap-1.5 px-2 sm:px-3 py-2.5 rounded-xl border border-red-200 text-red-600 text-[11px] sm:text-xs font-bold hover:bg-red-50 active:scale-[.97] transition-all touch-manipulation min-h-[44px] md:min-h-0"
+                    title="Eliminar visita"
+                  >
+                    <TrashIcon /> Eliminar
                   </button>
                 )}
                 </div>

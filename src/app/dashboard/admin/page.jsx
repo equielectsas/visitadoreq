@@ -6,7 +6,7 @@
  * Misma interfaz del asesor, pero agregada para TODOS los asesores.
  */
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import LayoutDashboard from "@/components/LayoutDashboard";
 import VisualizarVisitaModal from "@/components/VisualizarVisitaModal";
 import {
@@ -74,6 +74,19 @@ function flattenCitaAdmin(c) {
   };
 }
 
+function mapClienteToEmpresa(c) {
+  const nombre = c?.nombrePunto
+    ? `${c?.razonSocial || ""} - ${c.nombrePunto}`.trim()
+    : (c?.razonSocial || c?.nombrePunto || "").trim();
+  return {
+    _id: String(c?._id || ""),
+    nombre: nombre || `Cliente ${c?.identificacion || ""}`.trim(),
+    nit: c?.identificacion || "",
+    ciudad: c?.ciudad || "",
+    direccion: c?.direccion || "",
+  };
+}
+
 function ymdToYearMonth(ymd) {
   if (!ymd || typeof ymd !== "string" || ymd.length < 7) return "";
   return ymd.slice(0, 7); // yyyy-mm
@@ -125,6 +138,16 @@ const EyeIcon = () => (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
     <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+  </svg>
+);
+const PencilIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+  </svg>
+);
+const TrashIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m2 0H7m3-3h4a1 1 0 011 1v2H9V5a1 1 0 011-1z" />
   </svg>
 );
 
@@ -278,36 +301,278 @@ function DonutChart({ segments, size = 120 }) {
   );
 }
 
+function EmpresaSearchAdmin({ defaultQuery = "", onSelect }) {
+  const [query, setQuery] = useState(defaultQuery);
+  const [results, setResults] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const ref = useRef(null);
+  const timer = useRef(null);
+
+  useEffect(() => {
+    setQuery(defaultQuery || "");
+  }, [defaultQuery]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleSearch = (value) => {
+    setQuery(value);
+    if (timer.current) clearTimeout(timer.current);
+    if (!value.trim()) {
+      setResults([]);
+      setOpen(false);
+      return;
+    }
+    timer.current = setTimeout(async () => {
+      try {
+        setLoading(true);
+        const params = new URLSearchParams({ page: "1", limit: "10", search: value.trim() });
+        const res = await fetch(`/api/clientes?${params.toString()}`, {
+          headers: { Authorization: getToken() },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.message || "No se pudieron buscar empresas.");
+        const list = Array.isArray(data?.clientes)
+          ? data.clientes
+          : Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data)
+              ? data
+              : [];
+        setResults(list.map(mapClienteToEmpresa).filter((e) => e._id));
+        setOpen(true);
+      } catch {
+        setResults([]);
+        setOpen(true);
+      } finally {
+        setLoading(false);
+      }
+    }, 250);
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Empresa</label>
+      <input
+        type="text"
+        value={query}
+        onChange={(e) => handleSearch(e.target.value)}
+        onFocus={() => query && setOpen(true)}
+        className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800 outline-none focus:ring-2 focus:ring-[#1C355E]/20"
+        placeholder="Buscar por empresa o NIT..."
+      />
+      {loading && <span className="absolute right-3 top-9 w-4 h-4 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin" />}
+      {open && (
+        <div className="absolute z-40 left-0 right-0 mt-1 rounded-xl border border-gray-200 bg-white shadow-xl max-h-72 overflow-y-auto">
+          {results.length === 0 ? (
+            <p className="px-4 py-3 text-xs text-gray-400">No hay coincidencias.</p>
+          ) : (
+            results.map((empresa) => (
+              <button
+                key={empresa._id}
+                type="button"
+                onClick={() => {
+                  setQuery(empresa.nombre);
+                  setOpen(false);
+                  onSelect(empresa);
+                }}
+                className="w-full px-4 py-3 text-left hover:bg-[#1C355E]/5 border-b border-gray-50 last:border-0"
+              >
+                <p className="text-sm font-bold text-gray-800 truncate">{empresa.nombre}</p>
+                <p className="text-xs text-gray-400">
+                  <span className="font-mono">{empresa.nit || "—"}</span>
+                  {empresa.ciudad ? ` · ${empresa.ciudad}` : ""}
+                </p>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EditarVisitaAdminModal({ visita, onClose, onSave }) {
+  const [fecha, setFecha] = useState("");
+  const [hora, setHora] = useState("");
+  const [empresa, setEmpresa] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  useEffect(() => {
+    if (!visita) return;
+    const clienteId = visita.clienteId?._id || visita.clienteId || "";
+    setFecha(visita.fecha || "");
+    setHora(visita.hora || "");
+    setEmpresa({
+      _id: clienteId,
+      nombre: visita.datosVisita?.nombreEmpresa || visita.cliente || "",
+      nit: visita.datosVisita?.nit || "",
+      direccion: visita.datosVisita?.direccionEmpresa || "",
+      ciudad: visita.datosVisita?.municipio || "",
+    });
+    setSaving(false);
+    setFormError("");
+  }, [visita]);
+
+  if (!visita) return null;
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!empresa?.nombre?.trim()) {
+      setFormError("Selecciona una empresa.");
+      return;
+    }
+    if (!fecha?.trim() || !hora?.trim()) {
+      setFormError("Fecha y hora son obligatorias.");
+      return;
+    }
+    setSaving(true);
+    setFormError("");
+    await onSave({ fecha, hora, empresa });
+    setSaving(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/45 backdrop-blur-sm" onClick={saving ? undefined : onClose} />
+      <div className="relative z-10 bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden">
+        <div className="bg-[#1C355E] px-6 py-5 flex items-center justify-between">
+          <div>
+            <p className="text-white font-black">Editar visita</p>
+            <p className="text-white/60 text-xs mt-0.5">Administrador · {visita.estado}</p>
+          </div>
+          <button type="button" onClick={onClose} disabled={saving} className="text-white/80 hover:text-white text-sm font-bold">
+            Cerrar
+          </button>
+        </div>
+        <form onSubmit={submit} className="p-6 space-y-4">
+          <EmpresaSearchAdmin defaultQuery={empresa?.nombre || ""} onSelect={setEmpresa} />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Fecha</label>
+              <input
+                type="date"
+                value={fecha}
+                onChange={(e) => setFecha(e.target.value)}
+                className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Hora</label>
+              <input
+                type="time"
+                value={hora}
+                onChange={(e) => setHora(e.target.value)}
+                className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-medium text-gray-800"
+              />
+            </div>
+          </div>
+          {formError && <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs font-semibold text-red-600">{formError}</div>}
+          <div className="flex gap-3">
+            <button type="button" onClick={onClose} disabled={saving} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-sm font-bold text-gray-500">
+              Cancelar
+            </button>
+            <button type="submit" disabled={saving} className="flex-1 py-3 rounded-xl bg-[#1C355E] text-white text-sm font-bold disabled:opacity-50">
+              {saving ? "Guardando..." : "Guardar cambios"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const [allCitas, setAllCitas] = useState([]);
   const [activeTab, setActiveTab] = useState("todas");
   const [selectedVisit, setSelectedVisit] = useState(null);
+  const [editingVisit, setEditingVisit] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
 
+  const loadVisitas = useCallback(async ({ showLoading = true } = {}) => {
+    try {
+      if (showLoading) setLoading(true);
+      setError("");
+      const v = await fetchVisitas({ page: 1, limit: 500 });
+      const norm = v.map(normalizarVisitaAsesorNombre);
+      setAllCitas(norm);
+      const months = [...new Set(norm.map((c) => ymdToYearMonth(getVisitaYmdCalendario(c))).filter(Boolean))].sort().reverse();
+      setSelectedMonth((prev) => prev || months[0] || "");
+    } catch (e) {
+      setError(e?.message || "No se pudieron cargar las visitas.");
+    } finally {
+      if (showLoading) setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     let mounted = true;
     (async () => {
-      try {
-        setLoading(true);
-        setError("");
-        const v = await fetchVisitas({ page: 1, limit: 500 });
-        const norm = v.map(normalizarVisitaAsesorNombre);
-        if (!mounted) return;
-        setAllCitas(norm);
-        const months = [...new Set(norm.map((c) => ymdToYearMonth(getVisitaYmdCalendario(c))).filter(Boolean))].sort().reverse();
-        setSelectedMonth((prev) => prev || months[0] || "");
-      } catch (e) {
-        if (mounted) setError(e?.message || "No se pudieron cargar las visitas.");
-      } finally {
-        if (mounted) setLoading(false);
-      }
+      await loadVisitas();
+      if (!mounted) return;
     })();
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [loadVisitas]);
+
+  const handleDeleteVisit = useCallback(async (visita) => {
+    if (!visita?._id) return;
+    const ok = window.confirm(`¿Eliminar la visita de ${visita.datosVisita?.nombreEmpresa || "esta empresa"}?`);
+    if (!ok) return;
+    try {
+      setError("");
+      const res = await fetch(`/api/visitas/${visita._id}`, {
+        method: "DELETE",
+        headers: { Authorization: getToken() },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || "No se pudo eliminar la visita.");
+      if (selectedVisit?._id === visita._id) setSelectedVisit(null);
+      await loadVisitas({ showLoading: false });
+    } catch (e) {
+      setError(e?.message || "No se pudo eliminar la visita.");
+    }
+  }, [loadVisitas, selectedVisit]);
+
+  const handleSaveVisit = useCallback(async (payload) => {
+    if (!editingVisit?._id) return;
+    try {
+      setError("");
+      const empresa = payload.empresa || {};
+      const res = await fetch(`/api/visitas/${editingVisit._id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: getToken() },
+        body: JSON.stringify({
+          fecha: payload.fecha,
+          hora: payload.hora,
+          clienteId: empresa._id || null,
+          datosVisita: {
+            nombreEmpresa: empresa.nombre,
+            nit: empresa.nit,
+            direccionEmpresa: empresa.direccion,
+            municipio: empresa.ciudad,
+          },
+          motivo: "Edición admin",
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || "No se pudo guardar la visita.");
+      setEditingVisit(null);
+      await loadVisitas({ showLoading: false });
+    } catch (e) {
+      setError(e?.message || "No se pudo guardar la visita.");
+    }
+  }, [editingVisit, loadVisitas]);
 
   const months = useMemo(() => {
     return [...new Set(allCitas.map((c) => ymdToYearMonth(getVisitaYmdCalendario(c))).filter(Boolean))].sort().reverse();
@@ -406,6 +671,11 @@ export default function AdminDashboard() {
         show={!!selectedVisit}
         onClose={() => setSelectedVisit(null)}
         cita={selectedVisit}
+      />
+      <EditarVisitaAdminModal
+        visita={editingVisit}
+        onClose={() => setEditingVisit(null)}
+        onSave={handleSaveVisit}
       />
 
       <main className="flex-1 bg-[#F4F6FA] p-4 sm:p-6 md:p-8 min-h-screen">
@@ -591,14 +861,32 @@ export default function AdminDashboard() {
                       <td className="px-6 py-3.5 text-gray-500 text-xs">{v.datosVisita?.municipio || "—"}</td>
                       <td className="px-6 py-3.5"><Badge status={v.estado} /></td>
                       <td className="px-6 py-3.5">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedVisit(v)}
-                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 text-xs font-bold hover:bg-gray-50 hover:border-[#1C355E]/30 hover:text-[#1C355E] transition-all"
-                          title="Ver visita"
-                        >
-                          <EyeIcon /> Ver
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedVisit(v)}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-500 text-xs font-bold hover:bg-gray-50 hover:border-[#1C355E]/30 hover:text-[#1C355E] transition-all"
+                            title="Ver visita"
+                          >
+                            <EyeIcon /> Ver
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingVisit(v)}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-600 text-xs font-bold hover:bg-gray-50 hover:border-[#1C355E]/30 hover:text-[#1C355E] transition-all"
+                            title="Editar visita"
+                          >
+                            <PencilIcon /> Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteVisit(v)}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 text-red-600 text-xs font-bold hover:bg-red-50 transition-all"
+                            title="Eliminar visita"
+                          >
+                            <TrashIcon /> Eliminar
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
