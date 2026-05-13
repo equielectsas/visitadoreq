@@ -450,7 +450,10 @@ function CrearContactoModal({ show, onClose, onCreated, empresaVinculo, nombreIn
           }
         })();
         const base = process.env.NEXT_PUBLIC_API_URL || "";
-        const res = await fetch(`${base.replace(/\/$/, "")}/clientes/${empId}/contactos`, {
+        const url = base
+          ? `${base.replace(/\/$/, "")}/clientes/${empId}/contactos`
+          : `/api/clientes/${empId}/contactos`;
+        const res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: token },
           body: JSON.stringify({
@@ -702,7 +705,10 @@ function EditarContactoModal({ show, onClose, contacto, empresaVinculo, onSaved 
       try {
         const base = process.env.NEXT_PUBLIC_API_URL || "";
         const prof = (form.profesion || "").trim();
-        const res = await fetch(`${base.replace(/\/$/, "")}/clientes/${empId}/contactos/${contacto._id}`, {
+        const url = base
+          ? `${base.replace(/\/$/, "")}/clientes/${empId}/contactos/${contacto._id}`
+          : `/api/clientes/${empId}/contactos/${contacto._id}`;
+        const res = await fetch(url, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", Authorization: token },
           body: JSON.stringify({
@@ -887,7 +893,10 @@ function ContactoSearch({
       })();
       if (!empresaId) { setContactos([]); return; }
       const base = process.env.NEXT_PUBLIC_API_URL || "";
-      const res = await fetch(`${base.replace(/\/$/, "")}/clientes/${empresaId}/contactos`, {
+      const url = base
+        ? `${base.replace(/\/$/, "")}/clientes/${empresaId}/contactos`
+        : `/api/clientes/${empresaId}/contactos`;
+      const res = await fetch(url, {
         headers: { Authorization: token },
       });
       const json = await res.json().catch(() => ({}));
@@ -1311,7 +1320,7 @@ function EmpresaSearch({ onSelect, clientes, defaultQuery = "", fieldValid }) {
       )}
       {open && results.length === 0 && query.trim() && (
         <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl px-4 py-3">
-          <p className="text-xs text-gray-400 text-center">No se encontraron empresas con "{query}"</p>
+          <p className="text-xs text-gray-400 text-center">No se encontraron empresas con &quot;{query}&quot;</p>
         </div>
       )}
     </div>

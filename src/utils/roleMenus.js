@@ -114,6 +114,12 @@ export const roleMenus = {
     },
     {
       section: "Gestión",
+      name: "Contactos",
+      icon: "contact",
+      path: "/dashboard/asesor/contactos",
+    },
+    {
+      section: "Gestión",
       name: "Tareas Pendientes",
       icon: "steps",
       path: "/dashboard/asesor/tareas",
