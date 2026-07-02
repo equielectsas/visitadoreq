@@ -70,6 +70,7 @@ function getIcon(item) {
   if (name.includes("contacto")) return ICONS.contact;
   if (name.includes("reporte")) return ICONS.report;
   if (name.includes("chart") || name.includes("analisis")) return ICONS.chart;
+  if (name.includes("automatizacion") || name.includes("automation")) return ICONS.chart;
   if (name.includes("vehiculo") || name.includes("chequeo")) return ICONS.vehiculo;
   return ICONS[name] || ICONS.default;
 }

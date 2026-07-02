@@ -42,6 +42,12 @@ export const roleMenus = {
       icon: "vehiculo",
       path: "/dashboard/admin/chequeo-vehiculo",
     },
+    {
+      section: "Análisis",
+      name: "Automatización",
+      icon: "automatizacion",
+      path: "/dashboard/admin/automatizacion",
+    },
   ],
   adminComercial: [
     {
@@ -85,6 +91,12 @@ export const roleMenus = {
       name: "Chequeo vehículo",
       icon: "vehiculo",
       path: "/dashboard/admin/chequeo-vehiculo",
+    },
+    {
+      section: "Análisis",
+      name: "Automatización",
+      icon: "automatizacion",
+      path: "/dashboard/admin/automatizacion",
     },
   ],
   comercial: [

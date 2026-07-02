@@ -378,7 +378,6 @@ export default function AsesorDashboard() {
   const monthlyGoal = 10;
   const cumplimientoPct = monthlyGoal > 0 ? (monthStats.realizadas / monthlyGoal) * 100 : 0;
   const cumplimientoPctLabel = Number.isFinite(cumplimientoPct) ? Math.round(cumplimientoPct) : 0;
-
   const prevMonthTotal = prevMonthCitas.length;
   const trendVsPrev = prevMonthTotal > 0 ? Math.round(((monthStats.total - prevMonthTotal) / prevMonthTotal) * 100) : undefined;
 

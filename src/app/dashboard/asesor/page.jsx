@@ -873,6 +873,7 @@ function ContactoSearch({
   const [open, setOpen] = useState(false);
   const [contactos, setContactos] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [fuenteContacto, setFuenteContacto] = useState("sistema");
   const ref = useRef(null);
   const prevEmpresaKey = useRef(null);
 
@@ -881,22 +882,58 @@ function ContactoSearch({
       ? { ...c, correo: c.correo ?? c.email ?? "" }
       : c;
 
+  const getToken = () => {
+    try {
+      const u = JSON.parse(localStorage.getItem("user") || "null");
+      return u?.token || localStorage.getItem("token");
+    } catch {
+      return localStorage.getItem("token");
+    }
+  };
+
   // Sincronizar el texto con el valor actual del formulario (incluye limpiar al borrar)
   useEffect(() => {
     setQuery(defaultQuery ?? "");
   }, [defaultQuery]);
 
-  const loadContactos = async (qOverride = null) => {
+  const applySelectionFromList = (list, qOverride = null) => {
+    const qVal = (qOverride != null ? qOverride : query || "").trim().toLowerCase();
+    const filtered = !qVal
+      ? list
+      : list.filter((c) =>
+          (c.nombre || "").toLowerCase().includes(qVal) ||
+          (c.cargo || "").toLowerCase().includes(qVal) ||
+          (c.telefono || "").toLowerCase().includes(qVal) ||
+          (c.email || "").toLowerCase().includes(qVal) ||
+          (c.correo || "").toLowerCase().includes(qVal) ||
+          (c.notas || "").toLowerCase().includes(qVal)
+        );
+    const sliced = filtered.slice(0, 12);
+    setContactos(sliced);
+
+    if (selectedContactoId) {
+      const match = list.find((c) => String(c._id) === String(selectedContactoId));
+      if (match) setSelected(normalizeContacto(match));
+      else if (
+        selectedContactoFallback &&
+        String(selectedContactoFallback._id) === String(selectedContactoId)
+      ) {
+        setSelected(normalizeContacto(selectedContactoFallback));
+      } else {
+        setSelected(null);
+      }
+    } else {
+      setSelected(null);
+    }
+  };
+
+  const loadContactosSistema = async (qOverride = null) => {
     try {
-      const token = (() => {
-        try {
-          const u = JSON.parse(localStorage.getItem("user") || "null");
-          return u?.token || localStorage.getItem("token");
-        } catch {
-          return localStorage.getItem("token");
-        }
-      })();
-      if (!empresaId) { setContactos([]); return; }
+      const token = getToken();
+      if (!empresaId) {
+        setContactos([]);
+        return;
+      }
       const base = process.env.NEXT_PUBLIC_API_URL || "";
       const url = base
         ? `${base.replace(/\/$/, "")}/clientes/${empresaId}/contactos`
@@ -907,47 +944,44 @@ function ContactoSearch({
       const json = await res.json().catch(() => ({}));
       const raw = Array.isArray(json?.contactos) ? json.contactos : [];
       const list = raw.map(normalizeContacto);
-      const qVal = (qOverride != null ? qOverride : query || "").trim().toLowerCase();
-      const filtered = !qVal
-        ? list
-        : list.filter((c) =>
-            (c.nombre || "").toLowerCase().includes(qVal) ||
-            (c.cargo || "").toLowerCase().includes(qVal) ||
-            (c.telefono || "").toLowerCase().includes(qVal) ||
-            (c.email || "").toLowerCase().includes(qVal) ||
-            (c.correo || "").toLowerCase().includes(qVal) ||
-            (c.notas || "").toLowerCase().includes(qVal)
-          );
-      const sliced = filtered.slice(0, 12);
-      setContactos(sliced);
-
-      // Si ya hay un contacto seleccionado en el formulario, reflejarlo en el chip
-      if (selectedContactoId) {
-        const match = list.find((c) => String(c._id) === String(selectedContactoId));
-        if (match) setSelected(normalizeContacto(match));
-        else if (
-          selectedContactoFallback &&
-          String(selectedContactoFallback._id) === String(selectedContactoId)
-        ) {
-          setSelected(normalizeContacto(selectedContactoFallback));
-        } else {
-          setSelected(null);
-        }
-      } else {
-        setSelected(null);
-      }
+      applySelectionFromList(list, qOverride);
     } catch {
       setContactos([]);
     }
   };
 
+  const loadContactosMigrados = async (qOverride = null) => {
+    try {
+      const token = getToken();
+      const nombreEmpresa = (empresaNombre || "").trim();
+      if (!nombreEmpresa) {
+        setContactos([]);
+        return;
+      }
+      const qs = new URLSearchParams({ cliente: nombreEmpresa }).toString();
+      const res = await fetch(`/api/contactos-migrados/por-empresa?${qs}`, {
+        headers: { Authorization: token },
+      });
+      const json = await res.json().catch(() => ({}));
+      const raw = Array.isArray(json?.contactos) ? json.contactos : [];
+      const list = raw.map(normalizeContacto);
+      applySelectionFromList(list, qOverride);
+    } catch {
+      setContactos([]);
+    }
+  };
+
+  const loadContactos = async (qOverride = null) => {
+    if (fuenteContacto === "migrados") return loadContactosMigrados(qOverride);
+    return loadContactosSistema(qOverride);
+  };
+
   useEffect(() => {
     loadContactos("");
-    // recargar al crear/editar contacto (evento local del componente)
     const onUpd = () => loadContactos("");
     window.addEventListener("contactos-updated", onUpd);
     return () => window.removeEventListener("contactos-updated", onUpd);
-  }, [empresaId, empresaNombre, selectedContactoId, selectedContactoFallback]);
+  }, [empresaId, empresaNombre, selectedContactoId, selectedContactoFallback, fuenteContacto]);
 
   useEffect(() => {
     if (prevEmpresaKey.current === null) {
@@ -972,25 +1006,7 @@ function ContactoSearch({
   }, []);
 
   const tieneEmpresaVinculo = Boolean((empresaNombre || "").trim() || empresaId);
-
-  const poolEmpresa = () => {
-    return contactos;
-  };
-
-  const filtrarPool = (pool, val) => {
-    if (!val.trim()) return pool.slice(0, 12);
-    const q = val.toLowerCase();
-    return pool
-      .filter(
-        (c) =>
-          c.nombre?.toLowerCase().includes(q) ||
-          c.cargo?.toLowerCase().includes(q) ||
-          c.profesion?.toLowerCase().includes(q) ||
-          c.correo?.toLowerCase().includes(q) ||
-          c.telefono?.toLowerCase().includes(q)
-      )
-      .slice(0, 12);
-  };
+  const esFuenteMigrados = fuenteContacto === "migrados";
 
   const handleSearch = (val) => {
     setQuery(val);
@@ -1032,9 +1048,45 @@ function ContactoSearch({
         </label>
         <p className="text-[10px] text-gray-400 -mt-0.5">
           {tieneEmpresaVinculo
-            ? "Contactos de esta sede en el sistema. Si cambias a otra sucursal del mismo NIT, puedes conservar el encargado ya elegido."
+            ? esFuenteMigrados
+              ? "Contactos importados de la base histórica, relacionados por nombre de empresa (sin importar mayúsculas)."
+              : "Contactos de esta sede en el sistema. Si cambias a otra sucursal del mismo NIT, puedes conservar el encargado ya elegido."
             : "Elige la empresa arriba para ver sus contactos, o escribe para buscar en todos."}
         </p>
+
+        {tieneEmpresaVinculo && (
+          <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-1">
+            <button
+              type="button"
+              onClick={() => {
+                setFuenteContacto("sistema");
+                setOpen(true);
+              }}
+              className={`flex-1 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all ${
+                fuenteContacto === "sistema"
+                  ? "bg-white text-[#1C355E] shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Sistema actual
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFuenteContacto("migrados");
+                setOpen(true);
+              }}
+              className={`flex-1 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all ${
+                fuenteContacto === "migrados"
+                  ? "bg-white text-[#1C355E] shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Base migrada
+            </button>
+          </div>
+        )}
+
         <div className="relative">
           <input
             type="text"
@@ -1102,15 +1154,23 @@ function ContactoSearch({
                     {c.nombre?.charAt(0)?.toUpperCase() || "?"}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-gray-800 truncate">{c.nombre}</p>
+                    <p className="text-sm font-bold text-gray-800 truncate">
+                      {c.nombre}
+                      {c.fuente === "migrados" && (
+                        <span className="ml-1.5 text-[9px] font-black uppercase text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full align-middle">
+                          Migrado
+                        </span>
+                      )}
+                    </p>
                     <p className="text-xs text-gray-400 truncate">
                       {c.cargo || "—"}
                       {c.profesion ? ` · ${c.profesion}` : ""}
                       {c.telefono ? ` · ${c.telefono}` : ""}
+                      {c.correo ? ` · ${c.correo}` : ""}
                     </p>
                   </div>
                 </button>
-                {c._id != null && (
+                {c._id != null && c.fuente !== "migrados" && (
                   <button
                     type="button"
                     onClick={(e) => {
@@ -1133,7 +1193,7 @@ function ContactoSearch({
                 No hay coincidencias{tieneEmpresaVinculo ? " para esta empresa" : ""} con{" "}
                 <span className="font-semibold text-gray-600">&quot;{query}&quot;</span>
               </p>
-              {tieneEmpresaVinculo && (
+              {tieneEmpresaVinculo && !esFuenteMigrados && (
                 <button
                   type="button"
                   onClick={handleCrearClick}
@@ -1142,10 +1202,15 @@ function ContactoSearch({
                   <PlusIcon /> CREAR CONTACTO +
                 </button>
               )}
+              {tieneEmpresaVinculo && esFuenteMigrados && (
+                <p className="text-[10px] text-gray-500 text-center">
+                  Cambia a <strong>Sistema actual</strong> para crear un contacto nuevo, o escribe el nombre manualmente.
+                </p>
+              )}
             </div>
           )}
 
-          {contactos.length > 0 && tieneEmpresaVinculo && (
+          {contactos.length > 0 && tieneEmpresaVinculo && !esFuenteMigrados && (
             <div className="px-4 py-2 border-t border-gray-100 bg-gray-50/80">
               <p className="text-[10px] text-gray-500 mb-2 text-center">¿No es ninguno de estos? (ej. otro homónimo)</p>
               <button
@@ -1160,14 +1225,24 @@ function ContactoSearch({
 
           {contactos.length === 0 && !query.trim() && tieneEmpresaVinculo && (
             <div className="px-4 py-4 text-center space-y-2">
-              <p className="text-xs text-gray-400">No hay contactos vinculados a esta empresa aún.</p>
-              <button
-                type="button"
-                onClick={handleCrearClick}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl mx-auto bg-[#1C355E] text-white text-sm font-bold hover:bg-[#16294d]"
-              >
-                <PlusIcon /> CREAR CONTACTO +
-              </button>
+              <p className="text-xs text-gray-400">
+                {esFuenteMigrados
+                  ? "No hay contactos migrados para esta empresa."
+                  : "No hay contactos vinculados a esta empresa aún."}
+              </p>
+              {!esFuenteMigrados ? (
+                <button
+                  type="button"
+                  onClick={handleCrearClick}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl mx-auto bg-[#1C355E] text-white text-sm font-bold hover:bg-[#16294d]"
+                >
+                  <PlusIcon /> CREAR CONTACTO +
+                </button>
+              ) : (
+                <p className="text-[10px] text-gray-500">
+                  Prueba en <strong>Sistema actual</strong> o escribe el encargado manualmente.
+                </p>
+              )}
             </div>
           )}
 
