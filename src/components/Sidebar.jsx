@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { roleMenus } from "@/utils/roleMenus";
+import { getMenusForUser } from "@/utils/roleMenus";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const ICONS = {
@@ -65,7 +65,7 @@ function getIcon(item) {
   const name = item.icon || item.name?.toLowerCase();
   if (!name) return ICONS.default;
   if (name.includes("dashboard") || name.includes("inicio") || name.includes("home")) return ICONS.dashboard;
-  if (name.includes("cita") || name.includes("calendar")) return ICONS.calendar;
+  if (name.includes("cita") || name.includes("calendar") || name.includes("visita")) return ICONS.calendar;
   if (name.includes("cliente") || name.includes("usuario")) return ICONS.users;
   if (name.includes("contacto")) return ICONS.contact;
   if (name.includes("reporte")) return ICONS.report;
@@ -163,8 +163,8 @@ function NavGroup({ icon, label, isOpen, onToggle, children, pathname, basePath 
 }
 
 // ── Sidebar content (shared between desktop & mobile drawer) ──────────────────
-function SidebarContent({ rol, openMenu, toggleMenu, pathname, onNavigate }) {
-  const menu = roleMenus[rol] || [];
+function SidebarContent({ user, rol, openMenu, toggleMenu, pathname, onNavigate }) {
+  const menu = getMenusForUser(user || { rol });
   const sectionMap = {};
   for (const item of menu) {
     const section = item.section || "Principal";
@@ -265,26 +265,31 @@ function SidebarContent({ rol, openMenu, toggleMenu, pathname, onNavigate }) {
 export default function Sidebar({ mobileOpen = false, onClose = () => {} }) {
   const [openMenu, setOpenMenu] = useState(null);
   const [mounted, setMounted]   = useState(false);
-  const [rol, setRol]           = useState(null);
+  const [user, setUser]         = useState(null);
   const pathname     = usePathname();
+  const rol = user?.rol || null;
 
   useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem("user") || "null");
-    if (user?.rol) setRol(user.rol);
+    try {
+      const u = JSON.parse(localStorage.getItem("user") || "null");
+      if (u) setUser(u);
+    } catch {
+      setUser(null);
+    }
   }, []);
 
   useEffect(() => {
     if (!rol || !pathname) return;
-    const menu = roleMenus[rol] || [];
+    const menu = getMenusForUser(user);
     for (const item of menu) {
       if (item.children) {
         const anyActive = item.children.some((sub) => pathname.startsWith(sub.path.split("?")[0]));
         if (anyActive) { setOpenMenu(item.name); break; }
       }
     }
-  }, [pathname, rol]);
+  }, [pathname, rol, user]);
 
   // Cierra el drawer al cambiar de ruta (onClose debe ser estable, p. ej. useCallback en el padre).
   useEffect(() => {
@@ -300,7 +305,7 @@ export default function Sidebar({ mobileOpen = false, onClose = () => {} }) {
 
   const toggleMenu = (name) => setOpenMenu(openMenu === name ? null : name);
 
-  const sharedProps = { rol, openMenu, toggleMenu, pathname, onNavigate: onClose };
+  const sharedProps = { user, rol, openMenu, toggleMenu, pathname, onNavigate: onClose };
 
   return (
     <>

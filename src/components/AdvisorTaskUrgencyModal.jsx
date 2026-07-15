@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { getActiveTaskAlertForUser, acknowledgeTaskAlert } from "@/utils/platformNotifications";
+import { esAdminQuePuedeCrearVisitas } from "@/utils/adminAsesorPrivilegio";
 
 function readUser() {
   try {
@@ -51,7 +52,7 @@ export default function AdvisorTaskUrgencyModal() {
   const sync = useCallback(async () => {
     const u = readUser();
     setUser(u);
-    if (!u || u.rol !== "comercial") {
+    if (!u || (u.rol !== "comercial" && !esAdminQuePuedeCrearVisitas(u))) {
       setAlert(null);
       return;
     }

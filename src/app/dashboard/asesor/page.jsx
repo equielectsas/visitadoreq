@@ -13,6 +13,7 @@ import {
   replaceChequeoCompletadosHoyDesdePlataforma,
   limpiarSesionChequeoObsoleta,
 } from "@/utils/chequeoVehiculoStorage";
+import { esAdminQuePuedeCrearVisitas } from "@/utils/adminAsesorPrivilegio";
 
 function notifyVisitasUpdated() {
   if (typeof window === "undefined") return;
@@ -2412,6 +2413,10 @@ export default function AsesorCitasPage() {
     try {
       const token = getToken();
       const params = new URLSearchParams({ page: "1", limit: "500" });
+      // Este admin actúa como asesor: solo ve/gestiona sus propias visitas aquí.
+      if (esAdminQuePuedeCrearVisitas(user) && user?.cedula) {
+        params.set("asesorCedula", String(user.cedula).replace(/\D/g, ""));
+      }
       const res = await fetch(`/api/visitas?${params.toString()}`, {
         headers: { Authorization: token },
       });
@@ -2642,6 +2647,11 @@ export default function AsesorCitasPage() {
           <div className="min-w-0">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Mis Visitas</p>
             <h1 className="text-xl sm:text-2xl font-black text-gray-800 mt-0.5">Gestión de citas</h1>
+            {esAdminQuePuedeCrearVisitas(user) && (
+              <p className="text-xs text-emerald-700 mt-1 font-medium">
+                Modo admin-asesor: creas y gestionas tus visitas con tu cédula. El panel de administración sigue disponible en el menú.
+              </p>
+            )}
           </div>
           <button
             type="button"

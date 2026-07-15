@@ -6,6 +6,7 @@ import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import AdvisorTaskUrgencyModal from "./AdvisorTaskUrgencyModal";
 import { roleRoutes } from "@/utils/roleRoutes";
+import { esAdminQuePuedeCrearVisitas, esAdminRol } from "@/utils/adminAsesorPrivilegio";
 
 export default function LayoutDashboard({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -15,28 +16,35 @@ export default function LayoutDashboard({ children }) {
 
   useEffect(() => {
     if (!pathname) return;
+
+    let user = null;
+    try {
+      user = JSON.parse(localStorage.getItem("user") || "null");
+    } catch {}
+    const rol = user?.rol || null;
+
     const isAdminPath =
       pathname.startsWith("/dashboard/admin") ||
       pathname.startsWith("/dashboard/programador");
+    const isAsesorPath = pathname.startsWith("/dashboard/asesor");
 
-    if (!isAdminPath) return;
-
-    let rol = null;
-    try {
-      const u = JSON.parse(localStorage.getItem("user") || "null");
-      rol = u?.rol || null;
-    } catch {}
-
-    const isAdminRol = rol === "adminPlataforma" || rol === "adminComercial";
-    if (!isAdminRol) {
-      const fallback = roleRoutes[rol] || "/auth/login";
+    // Admin sin privilegio de visitas no puede entrar al flujo de asesor.
+    if (isAsesorPath && esAdminRol(user) && !esAdminQuePuedeCrearVisitas(user)) {
+      const fallback = roleRoutes[rol] || "/dashboard/admin";
       if (fallback !== pathname) router.replace(fallback);
       return;
     }
 
-    // Renombre: programador -> admin (redirige sin romper URLs antiguas)
-    if (pathname.startsWith("/dashboard/programador")) {
-      router.replace(pathname.replace("/dashboard/programador", "/dashboard/admin"));
+    if (isAdminPath) {
+      if (!esAdminRol(user)) {
+        const fallback = roleRoutes[rol] || "/auth/login";
+        if (fallback !== pathname) router.replace(fallback);
+        return;
+      }
+      // Renombre: programador -> admin (redirige sin romper URLs antiguas)
+      if (pathname.startsWith("/dashboard/programador")) {
+        router.replace(pathname.replace("/dashboard/programador", "/dashboard/admin"));
+      }
     }
   }, [pathname, router]);
 

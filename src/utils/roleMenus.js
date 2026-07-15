@@ -1,3 +1,5 @@
+import { esAdminQuePuedeCrearVisitas, MENU_EXTRA_ADMIN_ASESOR } from "@/utils/adminAsesorPrivilegio";
+
 export const roleMenus = {
   adminPlataforma: [
     {
@@ -138,3 +140,10 @@ export const roleMenus = {
     },
   ],
 };
+
+/** Menú del sidebar según rol; un admin específico recibe además Entradas de visitas. */
+export function getMenusForUser(user) {
+  const base = roleMenus[user?.rol] || [];
+  if (!esAdminQuePuedeCrearVisitas(user)) return base;
+  return [...base, ...MENU_EXTRA_ADMIN_ASESOR];
+}

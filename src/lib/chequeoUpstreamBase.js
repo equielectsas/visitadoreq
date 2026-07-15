@@ -3,7 +3,10 @@
  * Ej. https://tu-app.herokuapp.com o …/api
  */
 export function getChequeoApiBase() {
-  const raw = process.env.CHEQUEO_API_REWRITE_TARGET || "http://localhost:3001";
+  const raw =
+    process.env.CHEQUEO_API_REWRITE_TARGET ||
+    process.env.NEXT_PUBLIC_CHEQUEO_API_URL ||
+    "http://localhost:3001";
   let base = String(raw || "").trim().replace(/\/+$/, "");
   if (!base) return "";
   if (!/\/api$/i.test(base)) {
